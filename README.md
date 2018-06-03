@@ -1,7 +1,7 @@
 # Manuscript code repository
 This repository contains statistical code related to peer-reviewed published manuscripts. The goal is to increase transparency and reproducibility in research.
 
-## Zabor - Validity of a method for etiologic heterogeneity
+## Zabor_Validity-of-a-method-for-etiologic-heterogeneity
 
 Files:
 
