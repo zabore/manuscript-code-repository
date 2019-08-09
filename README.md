@@ -11,6 +11,8 @@ Files:
 Instructions:
 
 1. Download both files to the same directory
-2. Change the filepath in `setwd()` to point to the directory where the files were downloaded
-3. Set simulation parameters in `run_eh_cluster_sim.R` to desired values and run
-4. Use `set.seed()` to set a seed. Note that a variety of seeds were used to produce results in the manuscript.
+2. Install the `riskclustr` package from CRAN using `install.packages("riskclustr")`. Note that this line of code is commented out in `eh_cluster_sim_fun.R` as it only needs to be run once.
+3. Change the filepath in `setwd()` in `run_eh_cluster_sim.R`to point to the directory where the files were downloaded
+4. Set simulation parameters in `run_eh_cluster_sim.R` to desired values 
+5. Use `set.seed()` to set a seed. Note that a variety of seeds were used to produce results in the manuscript.
+6. Run `run_eh_cluster_sim.R` to produce results. See notes at bottom of code file for details on results structure.
