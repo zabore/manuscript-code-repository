@@ -2,7 +2,7 @@ library(dplyr)
 library(purrr)
 
 # Source the simulation function
-setwd("C:/My Documents/Biostatistics-2018-supplemental-code")
+setwd("D:/GitHub/manuscript-code-repository/Zabor_Validity-of-a-method-for-etiologic-heterogeneity")
 source("./eh_cluster_sim_fun.R")
 
 # Fix the simulation parameters

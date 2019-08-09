@@ -1,4 +1,27 @@
 ################################################################################
+# Calculate the minimum misclassification rate in a cross-tabulation
+################################################################################
+minmc <- function(tab) {
+    library(gtools)
+    
+    if(class(tab) != "table") {
+        stop("Argument tab should be the result of table()")
+    }
+    
+    m <- ncol(tab)
+    permmat <- permutations(m, m, 1:m)
+    misclass <- NULL
+    t2 <- NULL
+    for(i in 1:nrow(permmat)) {
+        t2[[i]] <- tab[order(permmat[i, ]), ]
+        misclass[i] <- 1 - sum(diag(t2[[i]])) / sum(t2[[i]])
+    }
+    return(list(minmisclass = misclass[which.min(misclass)],
+                mincrosstab = t2[[which.min(misclass)]]))
+}
+
+
+################################################################################
 # Function to perform a clustering simulation
 #
 #' @param M number of etiologically distinct disease subtypes
@@ -23,7 +46,7 @@
 #' @param reducedim if TRUE then do dimension reduction using univariable D
 ################################################################################
 
-devtools::install_github("zabore/riskclustr")
+# install.packages("riskclustr") #only need to run once
 library(riskclustr)
 suppressMessages(library(mlogit))
 library(gtools)
@@ -72,11 +95,7 @@ eh_cluster_sim <- function(M, N, pi, P, mu_m, K_A, lambda_Am,
     # matrix of all tumor marker data for CASES ONLY with numeric colnames
     y <- tail(cbind(tmA, tmB, tmC), -N * pi[1])
     colnames(y) <- seq(1:ncol(y))
-    
-    # polytomous model formula
-    mform <- mFormula(as.formula(c("cls ~ 1 |", 
-                                   paste(colnames(x), collapse = "+"))))
-    
+
     # k-means clustering on the combined true and noise tumor marker data
     # only among the cases
     kres <- sapply(1:nstart, function(l) {
@@ -93,11 +112,21 @@ eh_cluster_sim <- function(M, N, pi, P, mu_m, K_A, lambda_Am,
     
     # calculate D for each solution
     d_kres <- sapply(1:nstart, function(l) {
-        dat <- data.frame(cbind(cls = c(rep(0, N * pi[1]), kclust_out[, l]), 
-                                x), row.names = NULL)
+        
+        dat <- data.frame(
+            cbind(
+                cls = c(rep(0, N * pi[1]), kclust_out[, l]), 
+                x), 
+            row.names = NULL
+            )
+        
         if(any(table(dat$cls) < 20)) NA else
-            dest(mform, "cls", M, dat)
-    })
+            d(label = "cls",
+              M = M, 
+              factors = list("x1", "x2"), 
+              data = dat
+            )
+        })
     
     #index of selected sol
     max_res <- which(d_kres == max(d_kres[kg_out >= mean(kg_out)], 
@@ -115,9 +144,19 @@ eh_cluster_sim <- function(M, N, pi, P, mu_m, K_A, lambda_Am,
         
         # Estimate D for each binary tumor marker
         d_ybin <- sapply(1:ncol(ybin), function(l) {
-            dat <- data.frame(cbind(cls = c(rep(0, N * pi[1]), ybin[, l]),
-                                    x), row.names = NULL)
-            dest(mform, "cls", 2, dat)
+            
+            dat <- data.frame(
+                cbind(
+                    cls = c(rep(0, N * pi[1]), ybin[, l]),
+                    x), 
+                row.names = NULL
+                )
+            
+            d(label = "cls",
+              M = 2, 
+              factors = list("x1", "x2"), 
+              data = dat
+            )
         })
         
         # Make an ordered dataframe of the resulting univariate D
@@ -145,11 +184,20 @@ eh_cluster_sim <- function(M, N, pi, P, mu_m, K_A, lambda_Am,
             
             # calculate D for each solution
             d_kres_univd <- sapply(1:nstart, function(k) {
-                dat <- data.frame(cbind(cls = c(rep(0, N * pi[1]), 
-                                                kclust_univd_out[, k]), x), 
-                                  row.names = NULL)
+                
+                dat <- data.frame(
+                    cbind(
+                        cls = c(rep(0, N * pi[1]), kclust_univd_out[, k]), 
+                        x), 
+                    row.names = NULL
+                    )
+                
                 if(any(table(dat$cls) < 20)) NA else
-                    dest(mform, "cls", M, dat)
+                    d(label = "cls",
+                      M = M, 
+                      factors = list("x1", "x2"), 
+                      data = dat
+                    )
             })
             
             #index of selected sol
@@ -163,7 +211,7 @@ eh_cluster_sim <- function(M, N, pi, P, mu_m, K_A, lambda_Am,
             n_ka_sel <- c(n_ka_sel, sum(colnames(ysel) %in% 1:K_A))
             n_kb_sel <- c(n_kb_sel, sum(colnames(ysel) %in% (K_A + 1):
                                             (K_A + K_B)))
-            n_kc_sel <- c(n_kc_sel, sum(colnames(ysel) %in% (K_B + 1):
+            n_kc_sel <- c(n_kc_sel, sum(colnames(ysel) %in% (K_A + K_B + 1):
                                             (K_A + K_B + K_C)))
         }
     }
