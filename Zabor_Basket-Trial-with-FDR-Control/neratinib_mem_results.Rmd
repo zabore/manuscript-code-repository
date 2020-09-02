@@ -1,0 +1,141 @@
+---
+title: "MEM analysis of neratinib trial data"
+author: "Emily C. Zabor"
+date: "Last Updated: `r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(basket)
+```
+
+I used the `mem_mcmc()` function from the `basket`  package with the default prior and a null rate of 0.1 based on the null rate used in the SUMMIT trial.
+
+
+# Default prior of 0.5
+
+After the programming change to cluster directly the MAP, we find that using the default prior, breast comprises its own cluster, with the remaining baskets in a second cluster.
+
+```{r}
+load(here::here("results", "nerat_basket_0.5.rda"))
+summary(nerat_basket)
+```
+
+```{r}
+plot_map(nerat_basket$basket, 
+           text_size = 3, 
+           expand = c(0.5, 0.5), 
+           basket_name_hjust = 0.85)  
+
+plot_pep(nerat_basket$basket, 
+           text_size = 2.75, 
+           expand = c(0.5, 0.5), 
+           basket_name_hjust = 0.85)
+```
+
+
+# Alternative prior of 0.25
+
+The results using a prior of 0.25 are similar to the previous results prior to the change in clustering approach. While breast still has a very high posterior probability of exceeding the null and most other baskets still have a very low posterior probability, biliary tract and cervical tract have much higher posterior probabilities of 0.523 and 0.31, respectively, as compared to 0.14 and 0.08 with the default prior.
+
+```{r}
+load(here::here("results", "nerat_basket_0.25.rda"))
+summary(nerat_basket)
+```
+
+Now two clusters results, with breast, biliary tract, and cervical in one cluster, and the remaining cancers in the other. Interestingly, biliary tract does not show as being exchangeable with breast in the MAP, but biliary tract and cervical are exchangeable.
+
+```{r}
+plot_map(nerat_basket$basket, 
+           text_size = 3, 
+           expand = c(0.5, 0.5), 
+           basket_name_hjust = 0.85)  
+
+plot_pep(nerat_basket$basket, 
+           text_size = 2.75, 
+           expand = c(0.5, 0.5), 
+           basket_name_hjust = 0.85)
+
+pep25 <- 
+  plot_pep(nerat_basket$basket, 
+           text_size = 2.75, 
+           expand = c(0.5, 0.5), 
+           basket_name_hjust = 0.85)
+
+saveRDS(pep25, file = here::here("plots", "summit-pep.rds"))
+
+save.image(file = here::here("plots", "summit-full.RData"))
+```
+
+
+```{r}
+# Plot for manuscript
+pdf(here::here("plots", "summit-map.pdf"))
+plot_map(nerat_basket$basket, 
+         expand = c(0.2, 0),
+         basket_name_hjust = 0.85,
+         draw_legend = FALSE, 
+         palette = ezfun::ccf_palette("contrast")[c(10, 2, 4)])
+dev.off()
+```
+
+```{r}
+# Alternate manuscript plot including both the map and pep
+
+p1 <- plot_map(nerat_basket$basket, 
+         expand = c(0.2, 0),
+         basket_name_hjust = 0.85,
+         draw_legend = FALSE, 
+         palette = ezfun::ccf_palette("all")[c(11, 1, 22)])
+
+p2 <- plot_pep(nerat_basket$basket, 
+           # text_size = 2.75, 
+           expand = c(0.2, 0), 
+           basket_name_hjust = 0.85,
+           palette =  ezfun::ccf_palette("all")[c(11, 1, 22)],
+           legend_position = c(0.25, 0.9))
+
+p22 <- 
+  p2 + 
+  labs(title = element_blank()) +
+  scale_fill_gradient2(
+      low = ezfun::ccf_palette("all")[11], 
+      high = ezfun::ccf_palette("all")[22], 
+      mid = ezfun::ccf_palette("all")[1],
+      midpoint = 0.5, limit = c(0, 1), space = "Lab",
+      name = "PEP"
+    ) +
+  theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+
+pdf(here::here("plots", "summit-map-pep.pdf"), width = 12)
+gridExtra::grid.arrange(p1, p2, nrow = 1)
+dev.off()
+```
+
+```{r}
+# Trying the new network graph
+# Use this in place of the PEP plot above
+remotes::install_github("kaneplusplus/basket")
+library(basket)
+library(ggplot2)
+
+# plot_pep_graph(nerat_basket)
+pl <- plot_pep_graph(nerat_basket, pep_cutoff = 0.25)
+
+pl2 <- 
+  pl + 
+  theme(panel.background = element_blank())
+
+pdf(here::here("plots", "summit-network.pdf"))
+pl2
+dev.off()
+
+pdf(here::here("plots", "summit-pep-network.pdf"), width = 12)
+gridExtra::grid.arrange(p22, pl2, nrow = 1)
+dev.off()
+```
+
+
+

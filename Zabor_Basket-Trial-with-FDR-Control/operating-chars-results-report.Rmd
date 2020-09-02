@@ -1,0 +1,1476 @@
+---
+title: "Simulation study comparing MEM to frequentist"
+author: "Emily C. Zabor"
+date: "Last updated: `r Sys.Date()`"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(ezfun)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(ggpubr)
+library(tidyr)
+library(xtable)
+
+opts_chunk$set(echo = FALSE, 
+               message = FALSE,
+               warning = FALSE,
+               error = FALSE)
+```
+
+# Methods
+
+This report summarizes the operating characteristics of the MEM approach for a simulation scenario based on the SUMMIT trial for cancer patients with HER2 and HER3 mutations. There are 10 baskets each with sample size fixed at the sample size observed in the trial. Based on the original study design, the null response rate was fixed at 0.1 and the alternative response rate was fixed at 0.3. The prior exchangeability was fixed at 0.25 for each pair of baskets. We explored 5 simulation scenarios.
+
+```{r}
+sets <- 
+  tibble(
+    Setting = c("Global Null",
+                "Global Alternative",
+                "Mixed Alternative 1",
+                "Mixed Alternative 2",
+                "Mixed Alternative 3"),
+    "Lung (n=26)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Breast (n=25)" = c(0.1, 0.3, 0.3, 0.3, 0.3),
+    "Bladder (n=18)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Colorectal (n=17)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Biliary tract (n=11)" = c(0.1, 0.3, 0.1, 0.3, 0.3),
+    "Endometrial (n=8)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Cervical (n=5)" = c(0.1, 0.3, 0.1, 0.1, 0.3),
+    "Gastroesophageal (n=7)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Ovarian (n=5)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Other (n=19)" = c(0.1, 0.3, 0.1, 0.1, 0.1)
+  )
+
+kable(sets)
+```
+
+```{r eval = FALSE}
+# Table for manuscript
+sets2 <- 
+  tibble(
+    Setting = c("Global Null",
+                "Global Alternative",
+                "Mixed Alternative 1",
+                "Mixed Alternative 2",
+                "Mixed Alternative 3"),
+    "Lung (n=26)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Breast (n=25)" = c(0.1, 0.3, 0.3, 0.3, 0.3),
+    "Bladder (n=18)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Colorectal (n=17)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Biliary tract (n=11)" = c(0.1, 0.3, 0.1, 0.3, 0.3),
+    "Endometrial (n=8)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Cervical (n=5)" = c(0.1, 0.3, 0.1, 0.1, 0.3),
+    "Gastroesophageal (n=7)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Ovarian (n=5)" = c(0.1, 0.3, 0.1, 0.1, 0.1),
+    "Other (n=19)" = c(0.1, 0.3, 0.1, 0.1, 0.1)
+  )
+
+library(xtable)
+print(
+  xtable(sets), 
+  include.rownames = FALSE
+  )
+```
+
+
+For each iteration of the simulation study, a count of successful responses was randomly generated from the binomial distribution based on each basket's assumed response probability and sample size. The estimated posterior probability that the response probability for basket $j$ exceeded $\pi_0=0.10$ was obtained for each iteration, along with the 95% highest posterior density (HPD) interval. 5000 replicate samples were generated for each setting.
+
+The MEM results were compared to a frequentist test of the null hypothesis that the response rate was equal to the null rate of 0.1. An exact binomial test was used, and exact 95% confidence intervals were calculated for the response rate.
+
+
+# Results
+
+```{r}
+# Load the summary resutls created in operating-chars-results.R
+load(here::here("simulations",
+                 "operating-chars",
+                 "results",
+                 "scenario1-summary.rda"))
+```
+
+
+## Distributions of posterior probabilities and p-values
+
+```{r}
+# Function to make boxplots of the posterior probabilities and p-values side-by-side
+do_box <- function(dfname1, dfname2, ylim = c(0, 1)) {
+  dat <- full_join(dfname1, dfname2) %>% 
+    pivot_longer(
+      cols = c(pp, p_null),
+      names_to = "Type", 
+      values_to = "Value")
+  ggplot(dat, aes(x = factor(Basket), y = Value, fill = Type)) + 
+    geom_boxplot(position = "dodge") + 
+    theme_ezbasic() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = "",
+         x = "Basket",
+         y = "Value") + 
+    scale_fill_manual(
+      values = ccf_palette("main"), 
+      labels = c("P-value", "Posterior probability")) +
+    scale_y_continuous(limits = ylim)
+
+}
+
+do_box(pp_scenario1_null, pnull_scenario1_null) + 
+  ggtitle("Global null")
+
+do_box(pp_scenario1_alt0, pnull_scenario1_alt0) + 
+  ggtitle("Global alternative")
+
+do_box(pp_scenario1_alt1, pnull_scenario1_alt1) + 
+  ggtitle("Mixed alternative 1")
+
+do_box(pp_scenario1_alt2, pnull_scenario1_alt2) + 
+  ggtitle("Mixed alternative 2")
+
+do_box(pp_scenario1_alt3, pnull_scenario1_alt3) + 
+  ggtitle("Mixed alternative 3")
+```
+
+
+## Calibration of the MEM approach
+
+For the MEM method, for each of 19 possible posterior decision thresholds, the proportion of positive tests was recorded. Specifically, for a given threshold $\phi$, a positive test resulted from $Pr(\pi_j > \pi_0 | S) > \phi$, and a positive test under the null was considered a false positive. 
+
+```{r}
+# posterior decision thresholds
+pp_thresh <- c(0, seq(0.7, 0.9, length.out=6), seq(0.92, 0.98, length.out=7),
+               0.99, 0.999, 0.9999, 0.99999, 1)
+
+# invert these thresholds and use for both 1 minus posterior probability and p-values
+thresh1 <- 1 - pp_thresh
+```
+
+
+```{r}
+## function to calculate fdr at each threshold
+do_fdr <- function(dfname, thresh) {
+    dfname2 <- 
+      dfname %>% 
+      mutate(inv_pp = 1 - pp) %>% 
+      arrange(simnum, inv_pp) %>% 
+      group_by(simnum) %>% 
+      mutate(rank = row_number()) %>%
+      ungroup() 
+    
+    map(thresh, ~ dfname2$inv_pp <= dfname2$rank / 10 * .x) %>% 
+      bind_cols(dfname2, .) %>% 
+      as_tibble() %>% 
+      pivot_longer(
+        cols = starts_with("V"),
+        names_to = "Threshold",
+        values_to = "reject"
+        ) %>% 
+      mutate(Threshold = forcats::fct_relevel(
+        Threshold, "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", 
+        "V11", "V12", "V13", "V14", "V15", "V16", "V17", "V18", "V19")
+      ) %>% 
+      ungroup() %>% 
+      arrange(simnum, Threshold, rank) %>% 
+      group_by(simnum, Threshold) %>% 
+      summarize(max_rank = tryCatch(
+        max(rank[reject]),
+        error = function(e) NA,
+        warning = function(w) 0
+      )) %>% 
+      group_by(Threshold) %>% 
+      summarize(fdr_basket = sum(max_rank) / nrow(dfname2),
+                fdr_overall = mean(max_rank != 0))
+}
+
+## function to mark ech test result as positive or not at each threshold value
+calc_pos <- function(dfname, thresh) {
+  dfname2 <- 
+      dfname %>% 
+      mutate(inv_pp = 1 - pp)
+  
+  map(thresh, ~ dfname2$inv_pp < .x) %>% 
+  bind_cols() %>% 
+  cbind(dfname2) %>% 
+  as_tibble() %>% 
+  pivot_longer(
+    cols = starts_with("V"),
+    names_to = "Threshold",
+    values_to = "pos"
+    ) %>% 
+  mutate(Threshold = forcats::fct_relevel(
+    Threshold, "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", 
+    "V11", "V12", "V13", "V14", "V15", "V16", "V17", "V18", "V19")
+  ) 
+}
+```
+
+
+```{r}
+## MEM results ----
+
+# global null setting
+null_fdr <- do_fdr(pp_scenario1_null, thresh1)
+
+# run above function for each of the 4 alternative scenarios
+alt0_pos <- calc_pos(pp_scenario1_alt0, thresh1)
+alt1_pos <- calc_pos(pp_scenario1_alt1, thresh1)
+alt2_pos <- calc_pos(pp_scenario1_alt2, thresh1)
+alt3_pos <- calc_pos(pp_scenario1_alt3, thresh1)
+
+# Global alternative
+alt0_power <-
+  alt0_pos %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 1
+alt1_power <-
+  alt1_pos %>% 
+  filter(Basket %in% c("Breast")) %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 2
+alt2_power <-
+  alt2_pos %>% 
+  filter(Basket %in% c("Breast", "Biliary tract")) %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 3
+alt3_power <-
+  alt3_pos %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical")) %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+```
+
+ROC curves were generated by plotting overall FDR from the global null setting by power for each alterantive setting. The AUC on the overall FDR domain [0, 0.2) is given.
+
+```{r}
+# Function to do the smoothing spline and AUC
+# From Brian
+spline_auc <- function(data) {
+  s <- seq(0, 1, length.out = 1000)
+  
+  sm1 <- smooth.spline(data$fdr_overall, data$power, df = 9)
+  prd1 <- predict(sm1, x = s)$y
+  prd1[prd1 < 0] <- 0
+  prd1[prd1 > 1] <- 1
+  for(i in 1:(length(prd1)-1)) {
+    if(prd1[i + 1] < prd1[i]) {
+      prd1[i + 1] <- prd1[i]
+    }
+    }
+  AUC1 <- sum(diff(s[order(s[1:200])][1:200]) * 
+                zoo::rollmean(prd1[order(s[1:200])][1:200], 2)
+              )
+  splinedat <- 
+    tibble(
+      s = s, 
+      prd1 = prd1
+      )
+ 
+ return(list(AUC1 = AUC1, 
+             splinedat = splinedat))
+}
+```
+
+
+```{r fig.height = 8}
+# Global alternative
+roc_alt0_dat <- 
+  full_join(null_fdr, alt0_power) 
+            
+spline_auc_alt0 <- spline_auc(roc_alt0_dat)
+
+roc_alt0_plot <- 
+  ggplot(roc_alt0_dat, aes(x = fdr_overall, y = power)) +
+  geom_point(color = ccf_cols("ccf_green")) +
+  theme_ezbasic() +
+  labs(x = "Overall FDR", 
+       y = "Power",
+       title = "Global alternative") +
+  geom_line(data = spline_auc_alt0$splinedat, 
+            aes(x = s, y = prd1),
+            color = ccf_cols("ccf_green")) +
+  geom_text(x = 0.25, y = 0.1, 
+            label = paste0("MEM: AUC = ", round(spline_auc_alt0$AUC1, 3)))
+
+# Mixed alternative 1
+roc_alt1_dat <- 
+  full_join(null_fdr, alt1_power)
+
+spline_auc_alt1 <- spline_auc(roc_alt1_dat)
+
+roc_alt1_plot <- 
+  ggplot(roc_alt1_dat, aes(x = fdr_overall, y = power)) +
+  geom_point(color = ccf_cols("ccf_green")) +
+  theme_ezbasic() +
+  labs(x = "Overall FDR", 
+       y = "Power",
+       title = "Mixed alternative 1") +
+  geom_line(data = spline_auc_alt1$splinedat, 
+            aes(x = s, y = prd1),
+            color = ccf_cols("ccf_green")) +
+  geom_text(x = 0.25, y = 0.1, 
+            label = paste0("MEM: AUC = ", round(spline_auc_alt1$AUC1, 3)))
+
+# Mixed alternative 2
+roc_alt2_dat <-
+  full_join(null_fdr, alt2_power)
+
+spline_auc_alt2 <- spline_auc(roc_alt2_dat)
+
+roc_alt2_plot <-
+  ggplot(roc_alt2_dat, aes(x = fdr_overall, y = power)) +
+  geom_point(color = ccf_cols("ccf_green")) +
+  theme_ezbasic() +
+  labs(x = "Overall FDR", 
+       y = "Power",
+       title = "Mixed alternative 2") +
+  geom_line(data = spline_auc_alt2$splinedat, 
+            aes(x = s, y = prd1),
+            color = ccf_cols("ccf_green")) +
+  geom_text(x = 0.25, y = 0.1, 
+            label = paste0("MEM: AUC = ", round(spline_auc_alt2$AUC1, 3)))
+
+# Mixed alternative 3
+roc_alt3_dat <-
+  full_join(null_fdr, alt3_power) 
+
+spline_auc_alt3 <- spline_auc(roc_alt3_dat)
+  
+roc_alt3_plot <-
+  ggplot(roc_alt3_dat, aes(x = fdr_overall, y = power)) +
+  geom_point(color = ccf_cols("ccf_green")) +
+  theme_ezbasic() +
+  labs(x = "Overall FDR", 
+       y = "Power",
+       title = "Mixed alternative 3") +
+  geom_line(data = spline_auc_alt3$splinedat, 
+            aes(x = s, y = prd1),
+            color = ccf_cols("ccf_green")) +
+  geom_text(x = 0.25, y = 0.1, 
+            label = paste0("MEM: AUC = ", round(spline_auc_alt3$AUC1, 3)))
+
+ggarrange(roc_alt1_plot,
+          roc_alt2_plot,
+          roc_alt3_plot,
+          roc_alt0_plot)
+```
+
+```{r}
+# Plot for manuscript
+roc_alt0_plot <- 
+  ggplot(roc_alt0_dat, aes(x = fdr_overall, y = power)) +
+  geom_point() +
+  theme_ezbasic() +
+  labs(x = "FDR", 
+       y = "Power",
+       title = "Global alternative") +
+  geom_line(data = spline_auc_alt0$splinedat, 
+            aes(x = s, y = prd1)) +
+  geom_text(x = 0.25, y = 0.075, 
+            label = paste0("AUC = ", round(spline_auc_alt0$AUC1, 3)))
+
+# Mixed alternative 1
+roc_alt1_plot <- 
+  ggplot(roc_alt1_dat, aes(x = fdr_overall, y = power)) +
+  geom_point() +
+  theme_ezbasic() +
+  labs(x = "FDR", 
+       y = "Power",
+       title = "Mixed alternative 1") +
+  geom_line(data = spline_auc_alt1$splinedat, 
+            aes(x = s, y = prd1)) +
+  geom_text(x = 0.25, y = 0.075, 
+            label = paste0("AUC = ", round(spline_auc_alt1$AUC1, 3)))
+
+# Mixed alternative 2
+roc_alt2_plot <-
+  ggplot(roc_alt2_dat, aes(x = fdr_overall, y = power)) +
+  geom_point() +
+  theme_ezbasic() +
+  labs(x = "FDR", 
+       y = "Power",
+       title = "Mixed alternative 2") +
+  geom_line(data = spline_auc_alt2$splinedat, 
+            aes(x = s, y = prd1)) +
+  geom_text(x = 0.25, y = 0.075, 
+            label = paste0("AUC = ", round(spline_auc_alt2$AUC1, 3)))
+
+# Mixed alternative 3
+roc_alt3_plot <-
+  ggplot(roc_alt3_dat, aes(x = fdr_overall, y = power)) +
+  geom_point() +
+  theme_ezbasic() +
+  labs(x = "FDR", 
+       y = "Power",
+       title = "Mixed alternative 3") +
+  geom_line(data = spline_auc_alt3$splinedat, 
+            aes(x = s, y = prd1)) +
+  geom_text(x = 0.25, y = 0.075, 
+            label = paste0("AUC = ", round(spline_auc_alt3$AUC1, 3)))
+
+pdf(here::here("plots", "mem-roc.pdf"))
+ggarrange(roc_alt1_plot,
+          roc_alt2_plot,
+          roc_alt3_plot,
+          roc_alt0_plot)
+dev.off()
+```
+
+
+<br>
+
+Finally, we identify the posterior threshold that controls overall FDR at 0.1 under the global null scenario. The following table shows the resulting power for each setting, as well as the false positive rate (FPR) and family-wise error rate (FWER).
+
+```{r}
+# Look at a tighter range of threshold
+thresh2 <- seq(thresh1[6], thresh1[7], length.out = 30)
+
+# Global null: calculate overall FDR
+null_fdr_cal <- do_fdr(pp_scenario1_null, thresh2)
+
+# calculate the number of positives for the new thresholds
+alt0_pos_cal <- calc_pos(pp_scenario1_alt0, thresh2)
+alt1_pos_cal <- calc_pos(pp_scenario1_alt1, thresh2)
+alt2_pos_cal <- calc_pos(pp_scenario1_alt2, thresh2)
+alt3_pos_cal <- calc_pos(pp_scenario1_alt3, thresh2)
+
+# Global alternative
+alt0_power_cal <-
+  alt0_pos_cal %>% 
+  filter(Threshold == "V6") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 1
+alt1_power_cal <-
+  alt1_pos_cal %>% 
+  filter(Basket %in% c("Breast"),
+         Threshold == "V6") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 2
+alt2_power_cal <-
+  alt2_pos_cal %>% 
+  filter(Basket %in% c("Breast", "Biliary tract"),
+         Threshold == "V6") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 3
+alt3_power_cal <-
+  alt3_pos_cal %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical"),
+         Threshold == "V6") %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+```
+
+```{r}
+# also want to determine FPR and FWER for this threshold
+
+# global null
+null_pos_cal2 <- 
+  pp_scenario1_null %>% 
+  mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh2[6],
+           tn = inv_pp >= thresh2[6]) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(pos),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 1
+alt1_pos_cal2 <- 
+    pp_scenario1_alt1 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh2[6],
+           fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 2
+alt2_pos_cal2 <- 
+    pp_scenario1_alt2 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh2[6],
+           fp = ifelse(!Basket %in% c("Breast", "Biliary tract")
+                       & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                         pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 3
+alt3_pos_cal2 <- 
+    pp_scenario1_alt3 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh2[6],
+           fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical")
+                       & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                         pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+```
+
+Using the identified threshold of `r round(1-thresh2[6], 3)` for MEM posterior probability we have:
+
+```{r}
+acc_tab <- 
+  tibble(
+    Setting = c("Global null",
+                "Mixed alternative 1",
+                "Mixed alternative 2",
+                "Mixed alternative 3", 
+                "Global alternative"),
+    Power = c(NA,
+              alt1_power_cal$power,
+              alt2_power_cal$power, 
+              alt3_power_cal$power,
+              alt0_power_cal$power),
+    FPR = c(null_pos_cal2$fpr,
+            alt1_pos_cal2$fpr,
+            alt2_pos_cal2$fpr,
+            alt3_pos_cal2$fpr,
+            NA),
+    FWER = c(null_pos_cal2$fwer,
+             alt1_pos_cal2$fwer,
+             alt2_pos_cal2$fwer,
+             alt3_pos_cal2$fwer,
+             NA)
+    )
+
+kable(acc_tab, digits = c(0, 3, 3, 3))
+```
+
+```{r eval = FALSE}
+# Table for manuscript
+print(xtable(acc_tab), include.rownames = FALSE)
+```
+
+<br>
+
+Since control of FDR at 0.1 leads to unacceptably high FWER, we also explore the posterior threshold that controls overall FDR at 0.05 under the global null scenario. The following table shows the resulting power for each setting, as well as the false positive rate (FPR) and family-wise error rate (FWER).
+
+```{r}
+# Look at a tighter range of threshold
+thresh3 <- seq(thresh1[10], thresh1[11], length.out = 30)
+
+# Global null: calculate overall FDR
+null_fdr_cal3 <- do_fdr(pp_scenario1_null, thresh3)
+
+# calculate the number of positives for the new thresholds
+alt0_pos_cal3 <- calc_pos(pp_scenario1_alt0, thresh3)
+alt1_pos_cal3 <- calc_pos(pp_scenario1_alt1, thresh3)
+alt2_pos_cal3 <- calc_pos(pp_scenario1_alt2, thresh3)
+alt3_pos_cal3 <- calc_pos(pp_scenario1_alt3, thresh3)
+
+# Global alternative
+alt0_power_cal3 <-
+  alt0_pos_cal3 %>% 
+  filter(Threshold == "V19") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 1
+alt1_power_cal3 <-
+  alt1_pos_cal3 %>% 
+  filter(Basket %in% c("Breast"),
+         Threshold == "V19") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 2
+alt2_power_cal3 <-
+  alt2_pos_cal3 %>% 
+  filter(Basket %in% c("Breast", "Biliary tract"),
+         Threshold == "V19") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 3
+alt3_power_cal3 <-
+  alt3_pos_cal3 %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical"),
+         Threshold == "V19") %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+```
+
+```{r}
+# also want to determine FPR and FWER for this threshold
+
+# global null
+null_pos_cal4 <- 
+  pp_scenario1_null %>% 
+  mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh3[19],
+           tn = inv_pp >= thresh3[19]) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(pos),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 1
+alt1_pos_cal4 <- 
+    pp_scenario1_alt1 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh3[19],
+           fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 2
+alt2_pos_cal4 <- 
+    pp_scenario1_alt2 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh3[19],
+           fp = ifelse(!Basket %in% c("Breast", "Biliary tract")
+                       & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                         pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 3
+alt3_pos_cal4 <- 
+    pp_scenario1_alt3 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh3[19],
+           fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical")
+                       & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                         pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+```
+
+Using the identified threshold of `r round(1-thresh3[19], 3)` for MEM posterior probability we have:
+
+```{r}
+acc_tab2 <- 
+  tibble(
+    Setting = c("Global null",
+                "Mixed alternative 1",
+                "Mixed alternative 2",
+                "Mixed alternative 3", 
+                "Global alternative"),
+    Power = c(NA,
+              alt1_power_cal3$power,
+              alt2_power_cal3$power, 
+              alt3_power_cal3$power,
+              alt0_power_cal3$power),
+    FPR = c(null_pos_cal4$fpr,
+            alt1_pos_cal4$fpr,
+            alt2_pos_cal4$fpr,
+            alt3_pos_cal4$fpr,
+            NA),
+    FWER = c(null_pos_cal4$fwer,
+             alt1_pos_cal4$fwer,
+             alt2_pos_cal4$fwer,
+             alt3_pos_cal4$fwer,
+             NA)
+    )
+
+kable(acc_tab2, digits = c(0, 3, 3, 3))
+```
+
+```{r eval = FALSE}
+# Table for manuscript
+print(xtable(acc_tab2), include.rownames = FALSE)
+```
+
+
+## Properties of the frequentist approach
+
+In the frequentist approach, we consider a basket positive if the marginal p-value for the basket is < 0.05, following standard practice and the approach used in the SUMMIT trial. 
+
+```{r}
+## Frequentist ----
+
+## global null setting
+# calculate FDR
+null_fdr_freq <-
+  pnull_scenario1_null %>% 
+  arrange(simnum, p_null) %>% 
+  group_by(simnum) %>% 
+  mutate(rank = row_number(), 
+         reject = p_null <= rank / 10 * .05) %>%
+  summarize(max_rank = tryCatch(
+    max(rank[reject]),
+    error = function(e) NA,
+    warning = function(w) 0
+    )) %>% 
+  ungroup() %>% 
+  summarize(
+    fdr_basket = sum(max_rank) / nrow(pnull_scenario1_null),
+    fdr_overall = mean(max_rank != 0) 
+  )
+
+# calculate FPR and FWER
+null_pos_freq <- 
+  pnull_scenario1_null %>% 
+  mutate(pos = p_null < 0.05,
+         tn = p_null >= 0.05) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(pos),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+
+## Global alternative
+# calculate power
+alt0_power_freq <-
+  pnull_scenario1_alt0 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  summarize(power = mean(pos))
+
+
+## Mixed alternative 1
+# calculate FPR, FWER
+alt1_pos_freq <-
+  pnull_scenario1_alt1 %>% 
+  mutate(pos = p_null < 0.05,
+         fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+         tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# calculate power
+alt1_power_freq <-
+  pnull_scenario1_alt1 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  filter(Basket == "Breast") %>% 
+  summarize(power = mean(pos))
+
+
+## Mixed alternative 2
+# calculate FPR, FWER
+alt2_pos_freq <-
+  pnull_scenario1_alt2 %>% 
+  mutate(pos = p_null < 0.05,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# calculate power
+alt2_power_freq <-
+  pnull_scenario1_alt2 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract")) %>% 
+  summarize(power = mean(pos))
+
+
+## Mixed alternative 3
+# calculate FPR, FWER
+alt3_pos_freq <-
+  pnull_scenario1_alt3 %>% 
+  mutate(pos = p_null < 0.05,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# calculate power
+alt3_power_freq <-
+  pnull_scenario1_alt3 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical")) %>% 
+  summarize(power = mean(pos))
+```
+
+Controlling the basket-wise error at 0.05, we find:
+
+```{r}
+acc_tab_freq <- 
+  tibble(
+    Setting = c("Global null", 
+                "Mixed alternative 1",
+                "Mixed alternative 2",
+                "Mixed alternative 3",
+                "Global alternative"),
+    Power = c(NA,
+              alt1_power_freq$power,
+              alt2_power_freq$power, 
+              alt3_power_freq$power,
+              alt0_power_freq$power),
+    FPR = c(null_pos_freq$fpr,
+            alt1_pos_freq$fpr,
+            alt2_pos_freq$fpr,
+            alt3_pos_freq$fpr,
+            NA),
+    FWER = c(null_pos_freq$fwer,
+             alt1_pos_freq$fwer,
+             alt2_pos_freq$fwer,
+             alt3_pos_freq$fwer,
+             NA)
+    )
+
+kable(acc_tab_freq, digits = c(0, 3, 3, 3))
+```
+
+```{r eval = FALSE}
+print(xtable(acc_tab_freq %>% 
+               select(Setting, FWER)), include.rownames = FALSE)
+```
+
+
+<br>
+
+## Basket-wise Results
+
+We also look at the basket-wise properties of the frequentist approach, since it is not really meant to draw overall conclusions and the individual basket sample sizes probably play a large role.
+
+```{r}
+## Frequentist ----
+
+## global null setting
+# calculate FPR for each basket
+null_pos_freq2 <- 
+  pnull_scenario1_null %>% 
+  mutate(pos = p_null < 0.05,
+         tn = p_null >= 0.05) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = mean(pos))
+
+
+## Global alternative
+# calculate power for each basket
+alt0_power_freq2 <-
+  pnull_scenario1_alt0 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos))
+
+
+## Mixed alternative 1
+# calculate FPR for each basket
+alt1_pos_freq2 <-
+  pnull_scenario1_alt1 %>% 
+  mutate(pos = p_null < 0.05,
+         fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+         tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn))) 
+
+# calculate power for each basket
+alt1_power_freq2 <-
+  pnull_scenario1_alt1 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket == "Breast")
+
+
+## Mixed alternative 2
+# calculate FPR for each basket
+alt2_pos_freq2 <-
+  pnull_scenario1_alt2 %>% 
+  mutate(pos = p_null < 0.05,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn)))
+
+# calculate power
+alt2_power_freq2 <-
+  pnull_scenario1_alt2 %>% 
+  mutate(pos = p_null < 0.05)  %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract"))
+
+
+## Mixed alternative 3
+# calculate FPR for each basket
+alt3_pos_freq2 <-
+  pnull_scenario1_alt3 %>% 
+  mutate(pos = p_null < 0.05,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn)))
+
+# calculate power
+alt3_power_freq2 <-
+  pnull_scenario1_alt3 %>% 
+  mutate(pos = p_null < 0.05) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical")) 
+```
+
+Controlling the basket-wise error at 0.05, we find:
+
+```{r}
+acc_tab_freq2 <- 
+  tibble(
+    Setting = c("Global null", rep("", 10),
+                "Mixed alternative 1", rep("", 10),
+                "Mixed alternative 2", rep("", 10),
+                "Mixed alternative 3", rep("", 10),
+                "Global alternative",  rep("", 10)),
+    Basket = rep(c("", "Lung", "Breast", "Bladder", "Colorectal", "Biliary tract", "Endometrial", "Cervical", "Gastroesophageal", "Ovarian", "Other"), 5),
+    Power = c(rep(NA, 11),
+              c(NA, NA, alt1_power_freq2$power, rep(NA, 8)),
+              c(NA, NA, alt2_power_freq2$power[1], NA, NA, 
+                alt2_power_freq2$power[2], rep(NA, 5)),
+              c(NA, NA, alt3_power_freq2$power[1], NA, NA,
+                alt3_power_freq2$power[2], NA,
+                 alt3_power_freq2$power[3], rep(NA, 3)),
+              c(NA, alt0_power_freq2$power)),
+    FPR = c(NA, null_pos_freq2$fpr_basket,
+            NA, alt1_pos_freq2$fpr_basket,
+            NA, alt2_pos_freq2$fpr_basket,
+            NA, alt3_pos_freq2$fpr_basket,
+            rep(NA, 11)),
+    FWER = c(null_pos_freq$fwer, rep(NA, 10),
+             alt1_pos_freq$fwer, rep(NA, 10),
+             alt2_pos_freq$fwer, rep(NA, 10),
+             alt3_pos_freq$fwer, rep(NA, 10),
+             rep(NA, 11))
+    )
+
+kable(acc_tab_freq2, digits = c(0, 0, 3, 3, 3))
+```
+
+```{r eval = FALSE}
+# table for manuscript
+print(xtable(acc_tab_freq2), include.rownames = FALSE)
+```
+
+<br>
+
+For comparison, we look at the basket-wise properties of the MEM approach.
+
+```{r}
+## MEM ----
+
+## global null setting
+# calculate FPR for each basket
+null_pos2 <- 
+  pp_scenario1_null %>% 
+  mutate(pos = pp > 0.946,
+         tn = pp <= 0.946) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = mean(pos))
+
+
+## Global alternative
+# calculate power for each basket
+alt0_power2 <-
+  pp_scenario1_alt0 %>% 
+  mutate(pos = pp > 0.946) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos))
+
+
+## Mixed alternative 1
+# calculate FPR for each basket
+alt1_pos2 <-
+  pp_scenario1_alt1 %>% 
+  mutate(pos = pp > 0.946,
+         fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+         tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn))) 
+
+# calculate power for each basket
+alt1_power2 <-
+  pp_scenario1_alt1 %>% 
+  mutate(pos = pp > 0.946) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket == "Breast")
+
+
+## Mixed alternative 2
+# calculate FPR for each basket
+alt2_pos2 <-
+  pp_scenario1_alt2 %>% 
+  mutate(pos = pp > 0.946,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn)))
+
+# calculate power
+alt2_power2 <-
+  pp_scenario1_alt2 %>% 
+  mutate(pos = pp > 0.946)  %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract"))
+
+
+## Mixed alternative 3
+# calculate FPR for each basket
+alt3_pos2 <-
+  pp_scenario1_alt3 %>% 
+  mutate(pos = pp > 0.946,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn)))
+
+# calculate power
+alt3_power2 <-
+  pp_scenario1_alt3 %>% 
+  mutate(pos = pp > 0.946) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical")) 
+```
+
+When we control the overall FDR at 0.05 using the posterior threshold of 0.946, which is practically equivalent to controlling the basket-wise error at 5% (i.e. a posterior threshold of 0.95), we find
+
+```{r}
+acc_tab2 <- 
+  tibble(
+    Setting = c("Global null", rep("", 10),
+                "Mixed alternative 1", rep("", 10),
+                "Mixed alternative 2", rep("", 10),
+                "Mixed alternative 3", rep("", 10),
+                "Global alternative",  rep("", 10)),
+    Basket = rep(c("", "Lung", "Breast", "Bladder", "Colorectal", "Biliary tract", "Endometrial", "Cervical", "Gastroesophageal", "Ovarian", "Other"), 5),
+    Power = c(rep(NA, 11),
+              c(NA, NA, alt1_power2$power, rep(NA, 8)),
+              c(NA, NA, alt2_power2$power[1], NA, NA, 
+                alt2_power2$power[2], rep(NA, 5)),
+              c(NA, NA, alt3_power2$power[1], NA, NA,
+                alt3_power2$power[2], NA,
+                 alt3_power2$power[3], rep(NA, 3)),
+              c(NA, alt0_power2$power)),
+    FPR = c(NA, null_pos2$fpr_basket,
+            NA, alt1_pos2$fpr_basket,
+            NA, alt2_pos2$fpr_basket,
+            NA, alt3_pos2$fpr_basket,
+            rep(NA, 11))
+    )
+
+kable(acc_tab2, digits = c(0, 0, 3, 3))
+```
+
+```{r eval = FALSE}
+# table for manuscript
+print(xtable(acc_tab2), include.rownames = FALSE)
+```
+
+
+## Calibrate MEM to control FWER instead of FDR
+
+
+```{r}
+## MEM results ----
+
+# global null setting
+
+# categorize each result as positive or not at each of the 19 thresholds
+null_pos <- calc_pos(pp_scenario1_null, thresh1)
+
+# then for each threshold, calculate the fwer as the number of sims w/ any positive basket divided by the total number of sims
+null_pos_fwer <-
+  null_pos %>% 
+  group_by(simnum, Threshold) %>% 
+  summarize(fp_sim = sum(pos),
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  group_by(Threshold) %>% 
+  summarize(fwer = mean(fwer_sim))
+
+# Control of the FWER at 0.05 happens somewhere between threshold V15 (0.01) and threshold V16 (0.001)
+thresh1a <- seq(thresh1[15], thresh1[16], length.out = 30)
+
+# then use these new thresholds to redo the above
+null_pos2 <- calc_pos(pp_scenario1_null, thresh1a)
+
+null_pos_fwer2 <-
+  null_pos2 %>% 
+  group_by(simnum, Threshold) %>% 
+  summarize(fp_sim = sum(pos),
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  group_by(Threshold) %>% 
+  summarize(fwer = mean(fwer_sim))
+
+# Control of the FWER at 0.05 happens somewhere between threshold V6 (0.008448276) and threshold V7 (0.008137931)
+# Refine one more time
+thresh1b <- seq(thresh1a[6], thresh1a[7], length.out = 30)
+
+# then use these new thresholds to redo the above
+null_pos3 <- calc_pos(pp_scenario1_null, thresh1b)
+
+null_pos_fwer3 <-
+  null_pos3 %>% 
+  group_by(simnum, Threshold) %>% 
+  summarize(fp_sim = sum(pos),
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  group_by(Threshold) %>% 
+  summarize(fwer = mean(fwer_sim))
+
+# Use thresh1b[6]= 0.008394768 (or pp=0.992)
+```
+
+Control of the FWER at 0.05 occurs at posterior probability threshold of `r round(1-thresh1b[6], 3)`. Use this threshold to get overall and basket-wise properties.
+
+```{r}
+# Power
+
+# calculate the number of positives for the new thresholds
+alt0_pos_cal3 <- calc_pos(pp_scenario1_alt0, thresh1b)
+alt1_pos_cal3 <- calc_pos(pp_scenario1_alt1, thresh1b)
+alt2_pos_cal3 <- calc_pos(pp_scenario1_alt2, thresh1b)
+alt3_pos_cal3 <- calc_pos(pp_scenario1_alt3, thresh1b)
+
+# Global alternative
+alt0_power_cal3 <-
+  alt0_pos_cal3 %>% 
+  filter(Threshold == "V6") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 1
+alt1_power_cal3 <-
+  alt1_pos_cal3 %>% 
+  filter(Basket %in% c("Breast"),
+         Threshold == "V6") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 2
+alt2_power_cal3 <-
+  alt2_pos_cal3 %>% 
+  filter(Basket %in% c("Breast", "Biliary tract"),
+         Threshold == "V6") %>% 
+  summarize(power = mean(pos))
+
+# Mixed alternative 3
+alt3_power_cal3 <-
+  alt3_pos_cal3 %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical"),
+         Threshold == "V6") %>% 
+  group_by(Threshold) %>% 
+  summarize(power = mean(pos))
+```
+
+```{r}
+# also want to determine FPR and FWER for this threshold
+
+# global null
+null_pos_cal4 <- 
+  pp_scenario1_null %>% 
+  mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh1b[6],
+           tn = inv_pp >= thresh1b[6]) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(pos),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# calculate FDR for global null
+null_pos_cal4b <- do_fdr(pp_scenario1_null, thresh1b)
+null_pos_fdr <- null_pos_cal4b[6, ]
+
+# mixed alternative 1
+alt1_pos_cal4 <- 
+    pp_scenario1_alt1 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh1b[6],
+           fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 2
+alt2_pos_cal4 <- 
+    pp_scenario1_alt2 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh1b[6],
+           fp = ifelse(!Basket %in% c("Breast", "Biliary tract")
+                       & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                         pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+
+# mixed alternative 3
+alt3_pos_cal4 <- 
+    pp_scenario1_alt3 %>% 
+    mutate(inv_pp = 1 - pp,
+           pos = inv_pp < thresh1b[6],
+           fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical")
+                       & pos == TRUE, TRUE, FALSE),
+           tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                         pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(simnum) %>% 
+  summarize(fp_sim = sum(fp),
+            tn_sim = sum(tn), 
+            fp_tn_sim = fp_sim + tn_sim,
+            fpr_sim = fp_sim / fp_tn_sim,
+            fwer_sim = ifelse(fp_sim != 0, 1, 0)) %>% 
+  ungroup() %>% 
+  summarize(fpr = mean(fpr_sim),
+            fwer = mean(fwer_sim))
+```
+
+Overall results:
+
+```{r}
+acc_tab4 <- 
+  tibble(
+    Setting = c("Global null",
+                "Mixed alternative 1",
+                "Mixed alternative 2",
+                "Mixed alternative 3", 
+                "Global alternative"),
+    Power = c(NA,
+              alt1_power_cal3$power,
+              alt2_power_cal3$power, 
+              alt3_power_cal3$power,
+              alt0_power_cal3$power),
+    FPR = c(null_pos_cal4$fpr,
+            alt1_pos_cal4$fpr,
+            alt2_pos_cal4$fpr,
+            alt3_pos_cal4$fpr,
+            NA)
+    )
+
+kable(acc_tab4, digits = c(0, 3, 3))
+```
+
+```{r eval = FALSE}
+# Table for manuscript
+print(xtable(acc_tab4), include.rownames = FALSE)
+```
+
+And basket-wise results:
+
+```{r}
+## MEM ----
+
+## global null setting
+# calculate FPR for each basket
+null_pos4 <- 
+  pp_scenario1_null %>% 
+  mutate(pos = pp > 0.992,
+         tn = pp <= 0.992) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = mean(pos))
+
+
+## Global alternative
+# calculate power for each basket
+alt0_power4 <-
+  pp_scenario1_alt0 %>% 
+  mutate(pos = pp > 0.992) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos))
+
+
+## Mixed alternative 1
+# calculate FPR for each basket
+alt1_pos4 <-
+  pp_scenario1_alt1 %>% 
+  mutate(pos = pp > 0.992,
+         fp = ifelse(Basket != "Breast" & pos == TRUE, TRUE, FALSE),
+         tn = ifelse(Basket != "Breast" & pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn))) 
+
+# calculate power for each basket
+alt1_power4 <-
+  pp_scenario1_alt1 %>% 
+  mutate(pos = pp > 0.992) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket == "Breast")
+
+
+## Mixed alternative 2
+# calculate FPR for each basket
+alt2_pos4 <-
+  pp_scenario1_alt2 %>% 
+  mutate(pos = pp > 0.992,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn)))
+
+# calculate power
+alt2_power4 <-
+  pp_scenario1_alt2 %>% 
+  mutate(pos = pp > 0.992)  %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract"))
+
+
+## Mixed alternative 3
+# calculate FPR for each basket
+alt3_pos4 <-
+  pp_scenario1_alt3 %>% 
+  mutate(pos = pp > 0.992,
+         fp = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == TRUE, TRUE, FALSE),
+         tn = ifelse(!Basket %in% c("Breast", "Biliary tract", "Cervical") & 
+                       pos == FALSE, TRUE, FALSE)) %>% 
+  group_by(Basket) %>% 
+  summarize(fpr_basket = sum(fp) / (sum(fp) + sum(tn)))
+
+# calculate power
+alt3_power4 <-
+  pp_scenario1_alt3 %>% 
+  mutate(pos = pp > 0.992) %>% 
+  group_by(Basket) %>% 
+  summarize(power = mean(pos)) %>% 
+  filter(Basket %in% c("Breast", "Biliary tract", "Cervical")) 
+```
+
+When we control the overall FWER at 0.05 using the posterior threshold of 0.992, we find
+
+```{r}
+acc_tab5 <- 
+  tibble(
+    Setting = c("Global null", rep("", 10),
+                "Mixed alternative 1", rep("", 10),
+                "Mixed alternative 2", rep("", 10),
+                "Mixed alternative 3", rep("", 10),
+                "Global alternative",  rep("", 10)),
+    Basket = rep(c("", "Lung", "Breast", "Bladder", "Colorectal", "Biliary tract", "Endometrial", "Cervical", "Gastroesophageal", "Ovarian", "Other"), 5),
+    Power = c(rep(NA, 11),
+              c(NA, NA, alt1_power4$power, rep(NA, 8)),
+              c(NA, NA, alt2_power4$power[1], NA, NA, 
+                alt2_power4$power[2], rep(NA, 5)),
+              c(NA, NA, alt3_power4$power[1], NA, NA,
+                alt3_power4$power[2], NA,
+                 alt3_power4$power[3], rep(NA, 3)),
+              c(NA, alt0_power4$power)),
+    FPR = c(NA, null_pos4$fpr_basket,
+            NA, alt1_pos4$fpr_basket,
+            NA, alt2_pos4$fpr_basket,
+            NA, alt3_pos4$fpr_basket,
+            rep(NA, 11))
+    )
+
+kable(acc_tab5, digits = c(0, 0, 3, 3))
+```
+
+```{r eval= FALSE}
+# table for manuscript
+print(xtable(acc_tab5), include.rownames = FALSE)
+```

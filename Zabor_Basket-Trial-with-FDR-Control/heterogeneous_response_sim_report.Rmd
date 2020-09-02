@@ -1,0 +1,1202 @@
+---
+title: "Summary of heterogeneous response rate simulation"
+author: "Emily C. Zabor"
+date: "Last updated: `r Sys.Date()`"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    theme: flatly
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+library(ezfun)
+library(tidyverse)
+library(knitr)
+opts_chunk$set(echo = FALSE, warning = FALSE)
+```
+
+
+# Background
+
+Interest is in exploring the performance of the symmetric multi-state exchangeability model (MEM) under varying levels of response heterogeneity across baskets in the context of a basket trial.
+
+# Methods
+
+The `mem_exact()` method from the `basket` R package was used to generate the results. In each case there were J=3 baskets. Basket 2 had response probability fixed at 0.5 and the response probabilities for baskets 1 and 3 were varied to explore scenarios of increasing response heterogeneity across baskets.
+
+Total sample size was either 10, 20, or 30.
+
+The prior exchangeability matrix was either 0.5 for all pairs of basekets (the default), 0.25, or 0.75 for all pairs of baskets.
+
+The default null response rate of 0.15 was used in all settings.
+
+To generate the simulated datasets, response counts were randomly generated from a binomial distribution within each basket based on per-basket sample size and each basket's overall response probability.
+
+To start, we generate 500 simulated datasets for each scenario, and explore a limited number of combinations of response probabilities.
+
+Notes:
+
+- The results of the simulation will be a list of length equal to the number of simulated datasets
+- Each of those lists then has a nested list of length equal to the number of input parameter scenarios
+- And each of those lists then has a nested list with elements:
+
+  - N - numeric, sample size used for sim
+  - pi - numeric, vector of response rates for each basket
+  - prior - the prior probability of exchangeability
+  - map - matrix, map result
+  - pep - matrix, pep result
+  - ess - numeric, named vector of ESS for each basket
+  - clusters - list, baskets in each cluster, length is number of clusters
+  - mean_rr - numeric, vector of mean posterior response rate
+  - median_rr - numeric, vector of median posterior response rate
+  
+
+# Results summary
+
+```{r}
+# Load the results of the simulations
+load(here::here("results", "heterogeneous_response_sim_res.rda"))
+```
+
+```{r}
+# Function to summarize desired simulation results 
+
+do_sim_summary_v2 <- function(resultfile, x) {
+  # this will give me back all repetitions of the first sim setting
+  sim_res_temp <- map(resultfile, x)
+  
+  # then I want to summarize each element
+  
+  ## ESS - average across baskets since they should be about equal, across sim datasets - will end up with one average ESS for each sim scenario
+  mean_ess <- 
+    mean(
+      map_dbl(
+      map(
+        sim_res_temp,
+        "ess"
+        ), 
+      ~ mean(.x)
+      )
+    )
+  
+  # ESS - not averaged across baskets - one for each basket averaged across sims
+  mean_ess_1 <- mean(
+    map_dbl(
+      map(
+        sim_res_temp,
+        "ess"
+        ),
+      ~.[1]
+      )
+    )
+  
+  mean_ess_2 <- mean(
+    map_dbl(
+      map(
+        sim_res_temp,
+        "ess"
+        ),
+      ~.[2]
+      )
+    )
+  
+  mean_ess_3 <- mean(
+    map_dbl(
+      map(
+        sim_res_temp,
+        "ess"
+        ),
+      ~.[3]
+      )
+    )
+  
+  ## PEP - median for each pair across sim datasets
+  median_pep_12 <- 
+      median(
+        map_dbl(
+        map(
+        sim_res_temp, 
+        "pep"
+        ),
+        ~ .[1, 2]
+        )
+      )
+  
+  median_pep_23 <- 
+      median(
+        map_dbl(
+        map(
+        sim_res_temp, 
+        "pep"
+        ),
+        ~ .[2, 3]
+        )
+      )
+  
+  median_pep_13 <- 
+    median(
+      map_dbl(
+      map(
+      sim_res_temp, 
+      "pep"
+      ),
+      ~ .[1, 3]
+      )
+    )
+  
+  ## Bias - averaged across all sim datasets, separately for mean rr and median rr, and separately for each basket
+  mean_rr_bias_1 <-
+    mean(
+      map_dbl(
+      map(
+      map(
+          sim_res_temp,
+          "mean_rr"
+          ),
+      ~ sim_res_temp[[1]]$pi - .x
+      ),
+      ~ .[1]
+      )
+    )
+
+  mean_rr_bias_2 <-
+    mean(
+      map_dbl(
+      map(
+      map(
+          sim_res_temp,
+          "mean_rr"
+          ),
+      ~ sim_res_temp[[1]]$pi - .x
+      ),
+      ~ .[2]
+      )
+    )
+  
+  mean_rr_bias_3 <-
+    mean(
+      map_dbl(
+      map(
+      map(
+          sim_res_temp,
+          "mean_rr"
+          ),
+      ~ sim_res_temp[[1]]$pi - .x
+      ),
+      ~ .[3]
+      )
+    )
+  
+  median_rr_bias_1 <-
+    mean(
+      map_dbl(
+      map(
+      map(
+          sim_res_temp,
+          "median_rr"
+          ),
+      ~ sim_res_temp[[1]]$pi - .x
+      ),
+      ~ .[1]
+      )
+    )
+  
+  median_rr_bias_2 <-
+    mean(
+      map_dbl(
+      map(
+      map(
+          sim_res_temp,
+          "median_rr"
+          ),
+      ~ sim_res_temp[[1]]$pi - .x
+      ),
+      ~ .[2]
+      )
+    )
+  
+  median_rr_bias_3 <-
+    mean(
+      map_dbl(
+      map(
+      map(
+          sim_res_temp,
+          "median_rr"
+          ),
+      ~ sim_res_temp[[1]]$pi - .x
+      ),
+      ~ .[3]
+      )
+    )
+
+  return(
+    list(
+      N = sim_res_temp[[1]]$N,
+      delta = 0.5 - sim_res_temp[[1]]$pi[1],
+      prior = sim_res_temp[[1]]$prior,
+      mean_ess = mean_ess,
+      mean_ess_1 = mean_ess_1,
+      mean_ess_2 = mean_ess_2,
+      mean_ess_3 = mean_ess_3,
+      median_pep_12 = median_pep_12,
+      median_pep_23 = median_pep_23, 
+      median_pep_13 = median_pep_13,
+      mean_rr_bias_1 = mean_rr_bias_1,
+      mean_rr_bias_2 = mean_rr_bias_2,
+      mean_rr_bias_3 = mean_rr_bias_3,
+      median_rr_bias_1 = median_rr_bias_1,
+      median_rr_bias_2 = median_rr_bias_2,
+      median_rr_bias_3 = median_rr_bias_3
+    )
+  )
+}
+```
+
+```{r}
+# Run the function over all simulation settings
+# Get a dataframe of results
+sim_res_df <- 
+  map_df(
+    1:135,
+    ~do_sim_summary_v2(sim_res, .x)
+  )
+```
+
+
+## ESS
+
+```{r fig.height=7}
+# Plot ESS by delta 
+# color for N, facet for prior
+ggplot(sim_res_df, aes(x = delta, y = mean_ess)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  scale_y_continuous(breaks = seq(10, 90, 10)) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "ESS", 
+       color = "Sample size",
+       title = "Average ESS by delta, sample size, and prior exchangeability prob")
+```
+
+- When delta is smaller, the effective sample size increases as the prior probability of exchangeability increases
+
+```{r}
+# Touched up plot for manuscript
+sim_res_df_long3 <- 
+  sim_res_df %>% 
+  select(N, delta, prior, mean_ess_1, mean_ess_2, mean_ess_3) %>% 
+  pivot_longer(
+    cols = starts_with("mean"),
+    names_to = "basket",
+    names_prefix = "mean_ess_",
+    values_to = "mean_ess"
+  )
+  
+ggplot(sim_res_df_long3, aes(x = delta, y = mean_ess, 
+                             color = factor(N), linetype = basket)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(
+    ~ prior,
+    labeller = label_bquote(Pr(Omega['i,j'] == 1) == .(prior))) +
+  scale_color_manual(values = ccf_palette("contrast")) +
+  scale_y_continuous(breaks = seq(10, 90, 10)) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = expression(Delta),
+       y = "Mean ESS", 
+       color = expression(n[j]),
+       linetype = expression(j)) 
+
+ggsave(filename = here::here("plots", "prior-prob-exchange-ess.pdf"),
+       width = 8, height = 7)
+ggsave(filename = here::here("plots", "prior-prob-exchange-ess.png"),
+       width = 8, height = 7)
+```
+
+
+
+## PEP
+
+```{r fig.height = 6}
+# Plot median PEP by delta 
+# color for N, facet for prior
+ggplot(sim_res_df, aes(x = delta, y = median_pep_13)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "Median PEP (basket 1 & basket 3)", 
+       color = "Sample size",
+       title = "Median PEP by delta, sample size, and prior exchangeability prob")
+
+ggplot(sim_res_df, aes(x = delta, y = median_pep_12)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "Median PEP (basket 1 & basket 2)", 
+       color = "Sample size",
+       title = "Median PEP by delta, sample size, and prior exchangeability prob")
+
+ggplot(sim_res_df, aes(x = delta, y = median_pep_23)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "Median PEP (basket 2 & basket 3)", 
+       color = "Sample size",
+       title = "Median PEP by delta, sample size, and prior exchangeability prob")
+```
+
+- The PEP at smaller sample sizes is much more affected by the prior, particularly when delta = 0.2 for baskets 1&3, and when delta > 0.2 for baskets 1&2 and 2&3
+
+```{r}
+# Try plotting all three baskets on a single plot for the manuscript
+sim_res_df_long1 <- 
+  sim_res_df %>% 
+  select(N, delta, prior, starts_with("median_pep")) %>% 
+  pivot_longer(
+    cols = (starts_with("median_pep")),
+    names_to = "baskets",
+    names_prefix = "median_pep_",
+    values_to = "median_pep"
+  ) %>% 
+  mutate(
+    baskets_lab = case_when(
+      baskets == "12" ~ "1 & 2",
+      baskets == "23" ~ "2 & 3",
+      baskets == "13" ~ "1 & 3"
+    )
+  )
+
+ggplot(sim_res_df_long1, 
+       aes(x = delta, y = median_pep, 
+           linetype = baskets_lab, color = factor(N))) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(
+    ~ prior,
+    labeller = label_bquote(Pr(Omega['i,j'] == 1) == .(prior))) +
+  scale_color_manual(values = ccf_palette("contrast")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = expression(Delta),
+       y = "Median PEP", 
+       color = expression(n[j]),
+       linetype = "Basket pair") 
+
+ggsave(filename = here::here("plots", "prior-prob-exchange-pep.pdf"),
+       width = 8, height = 7)
+ggsave(filename = here::here("plots", "prior-prob-exchange-pep.png"),
+       width = 8, height = 7)
+```
+
+
+
+## Bias 
+
+Bias here is defined as the difference between the true response probability and the mean response rate for each basket.
+
+```{r fig.height = 6}
+# Plot median PEP by delta 
+# color for N, facet for prior
+ggplot(sim_res_df, aes(x = delta, y = mean_rr_bias_1)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "Bias (basket 1)", 
+       color = "Sample size",
+       title = "Average Bias by delta, sample size, and prior exchangeability prob") +
+  geom_hline(yintercept = 0, lty = 2)
+
+ggplot(sim_res_df, aes(x = delta, y = mean_rr_bias_2)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "Bias (basket 2)", 
+       color = "Sample size",
+       title = "Average Bias by delta, sample size, and prior exchangeability prob") +
+  geom_hline(yintercept = 0, lty = 2)
+
+ggplot(sim_res_df, aes(x = delta, y = mean_rr_bias_3)) + 
+  geom_point(aes(color = factor(N))) + 
+  geom_line(aes(color = factor(N))) + 
+  facet_wrap(~ prior) +
+  scale_color_manual(values = ccf_palette("main")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = "Delta",
+       y = "Bias (basket 3)", 
+       color = "Sample size",
+       title = "Average Bias by delta, sample size, and prior exchangeability prob") +
+  geom_hline(yintercept = 0, lty = 2)
+```
+
+- the mean response rates for basket 2 always have little bias (within 0.015 in all cases)
+- when delta = 0, the mean response rates are unbiased regardless of the prior for baskets 1 and 3
+- the mean response rates are overestimated for basket 1 when delta > 0, and this is more extreme as the prior probability of exchangeability increases and as sample size decreases
+- the mean response rates are underestimated for basket 3 when delta > 0
+
+```{r}
+# Try plotting all three baskets on a single plot for the manuscript
+sim_res_df_long2 <- 
+  sim_res_df %>% 
+  select(N, delta, prior, starts_with("mean_rr")) %>% 
+  pivot_longer(
+    cols = (starts_with("mean_rr")),
+    names_to = "basket",
+    names_prefix = "mean_rr_bias_",
+    values_to = "mean_rr_bias"
+  ) 
+
+ggplot(sim_res_df_long2, 
+       aes(x = delta, y = mean_rr_bias, 
+           linetype = basket, color = factor(N))) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(
+    ~ prior,
+    labeller = label_bquote(Pr(Omega['i,j'] == 1) == .(prior))) +
+  scale_color_manual(values = ccf_palette("contrast")) +
+  theme_ezbasic(legend_title = TRUE,
+                plot_title_size = 12) +
+  labs(x = expression(Delta),
+       y = "Bias", 
+       color = expression(n[j]),
+       linetype = expression(j)) 
+
+ggsave(filename = here::here("plots", "prior-prob-exchange-bias.pdf"),
+       width = 8, height = 7)
+ggsave(filename = here::here("plots", "prior-prob-exchange-bias.png"),
+       width = 8, height = 7)
+```
+
+
+
+
+```{r }
+# Function to extract and summarize the desired simulation results
+
+do_sim_summary <- function(resultfile, x) {
+  # this will give me back all repetitions of the first sim setting
+  sim_res_temp <- map(resultfile, x)
+  
+  # then I want to summarize each element
+
+  ## MAP - tabulate distinct MAP matrices
+  # First extract all maps for this setting
+  sim_res_map <- map(sim_res_temp, "map") 
+
+  # then get a list of the unique maps
+  unique_maps <- unique(sim_res_map)
+
+  # then count the number of instances of each
+  unique_maps_count <- 
+    map_dbl(1:length(unique_maps), 
+      function(x) sum(
+        map_lgl(
+          sim_res_map, 
+          function(y) identical(
+            y, 
+            unique_maps[[x]])
+          )
+        )
+      )
+
+  # finally combine the two
+  sim_res_map_tab <-
+    tibble(
+      map = unique_maps,
+      frequency = unique_maps_count
+    ) %>% 
+    arrange(desc(frequency))
+
+
+  ## PEP - average
+  sim_res_pep <- 
+    map(
+      sim_res_temp, 
+      "pep"
+      )
+  sim_res_avg_pep <- apply(simplify2array(sim_res_pep), c(1,2), mean)
+
+  ## ESS - average
+  sim_res_ess <- 
+    map(
+      sim_res_temp,
+      "ess"
+    )
+  sim_res_avg_ess <- apply(simplify2array(sim_res_ess), 1, mean)
+  
+  return(
+    list(
+      N = sim_res_temp[[1]]$N,
+      pi = sim_res_temp[[1]]$pi,
+      sim_res_map_tab,
+      sim_res_avg_pep,
+      sim_res_avg_ess,
+      sim_res_pep = sim_res_pep
+    )
+  )
+  
+}
+```
+
+## Prior = 0.5 (default)
+
+```{r}
+# Run the function over all simulation settings
+# For prior = 0.5
+sim_res_all <- 
+  map(
+    61:75,
+    ~do_sim_summary(sim_res, .x)
+  )
+```
+
+```{r}
+# Want to determine the percentage of exchangeable MAPs for each setting
+ref_matrix <- 
+  matrix(
+    rep(1, 9),
+    nrow = 3,
+    dimnames = list(c("A", "B", "C"), c("A", "B", "C"))
+  )
+
+index_of_exchange <- 
+  map_dbl(1:15,
+      function(x) ifelse(
+        is.numeric(
+          which(
+            map_lgl(
+              sim_res_all[[x]][[3]][["map"]], 
+              function(y) identical(y, ref_matrix)
+              ) 
+            == TRUE
+            )),
+        which(
+            map_lgl(
+              sim_res_all[[x]][[3]][["map"]], 
+              function(y) identical(y, ref_matrix)
+              ) 
+            == TRUE
+            ),
+        NA
+        )
+      )
+
+exchange_freqs <- 
+  map_dbl(
+    1:15,
+    function(x) ifelse(
+      !is.na(index_of_exchange[x]),
+      sim_res_all[[x]][[3]][["frequency"]][[index_of_exchange[x]]],
+      0
+      )
+  )
+
+exchange_props <- exchange_freqs / 500
+
+pi1s <- 
+  map_dbl(
+    1:15, 
+    ~sim_res_all[[.x]][["pi"]][1]
+  )
+
+pi3s <- 
+  map_dbl(
+    1:15, 
+    ~sim_res_all[[.x]][["pi"]][3]
+  )
+
+sampsize <- 
+  map_dbl(
+    1:15,
+    ~sim_res_all[[.x]][["N"]]
+  )
+
+plotdat <- 
+  tibble(
+    pi1s,
+    pi3s,
+    exchange_props,
+    sampsize,
+    label = paste0("pi1 = ", pi1s, ", pi3 = ", pi3s)
+  )
+
+ggplot(plotdat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = exchange_props, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  ylim(0, 1) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Proportion of exchangeable MAPs", 
+       fill = "Sample size",
+       title = "Proportion of fully exchangeable MAPs by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- When the true response probabilities are equal across all three baskets, when sample size is 10/basket nearly 3/4 of all simulated trials result in a MAP indicating full exchangeability across all baskets. This proportion of fully exchangeable MAPs increases with sample size, up to nearly 90% with a sample size of 30/basket. 
+- The percentage of fully exchangeable MAPs decreases as the response probabilities across baskets diverge. When pi1=0.3 and pi3=0.7 the trend across sample size reverses, such that as the sample size increases the proportion of exchangeable MAPs decreases. When pi1=0.1 and pi3=0.9, 0% of trials result in an exchangeable MAP, regardless of sample size.
+- Overall as sample size per basket increases the method can better capture the true exchangeability across baskets.
+
+
+```{r}
+# Next summarize the PEP according to the input parameters
+# Make a similar plot to above but the y-axis is correlation
+# Need to use facets - one facet for each of the three correlations
+peps <- map(1:15, ~ sim_res_all[[.x]][[4]])
+peps_dat <-
+  map(1:15, ~ as.vector(peps[[.x]])[!as.vector(peps[[.x]]) %in% c(1, NA)]) %>% 
+  enframe() %>% 
+  unnest() %>% 
+  mutate(combo = rep(c("pi1,pi2", "pi1,pi3", "pi2,pi3"), 15),
+         sampsize = rep(c(10, 20, 30), each = 15),
+         label = rep(plotdat$label, each = 3))
+
+ggplot(peps_dat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = value, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  ylim(0, 1) +
+  facet_wrap(~ combo) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Average PEP", 
+       fill = "Sample size",
+       title = "Average PEP by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- The average PEPs for each pair of baskets are nearly 0.75 or greater when the baskets have equivalent response probabilities, going up to nearly 0.90 when the sample size is 30. 
+- These average PEPs then decrease as the true response probabilities of baskets 1 and 3 diverge from basket 2, especially for the larger sample sizes.
+
+```{r}
+# Drill down into a couple of PEP scenarios
+# This function will extract the values I want into a dataframe for a single simulation setting
+testfun <- function(x){
+  map(
+    1:500, 
+    ~ as.vector(sim_res_all[[x]][["sim_res_pep"]][[.x]])[c(4, 7, 8)]) %>% 
+  enframe() %>% 
+  unnest() %>% 
+  mutate(combo = rep(c("pi1,pi2", "pi1,pi3", "pi2,pi3"), 500))
+}
+
+# Then here I map overall all 15 simulation settings and collapse the results from a list into a dataframe
+bigdf <- 
+  map_df(
+    1:15, 
+    testfun
+  )
+
+# Now need to get the vars related to each setting into the right format to merge with the pep results
+setdf <- plotdat %>% select(pi1s, pi3s, sampsize) %>% 
+  slice(rep(1:n(), each = 1500))
+
+# Finally combine the two
+pepdeets <- 
+  bind_cols(bigdf, setdf)
+
+# Let's limit to the case of pi1=0.4, pi3=0.6 and pi1=0.2, pi3=0.8
+pepsub <- 
+  pepdeets %>% 
+  filter((pi1s == 0.4 & pi3s == 0.6) |
+           (pi1s == 0.2 & pi3s == 0.8)) %>% 
+  mutate(label = paste0("pi1 = ", pi1s, ", pi3 = ", pi3s, ", n per basket = ", sampsize))
+
+# Plot the raw pep values in a faceted plot
+ggplot(pepsub, aes(x = value)) + 
+  geom_histogram(bins = 20) + 
+  facet_wrap(~ label) +
+  theme_ezbasic() +
+  labs(x = "PEP",
+       y = "Count", 
+       title = "Distribution of PEP by sample size (2 settings only)") +
+  theme(strip.text.x = element_text(size = 8))
+```
+
+
+```{r}
+# Finally summarize the ESS
+ess_dat <- map(1:15, ~ sim_res_all[[.x]][[5]]) %>% 
+  enframe() %>%
+  unnest() %>% 
+  mutate(combo = rep(c("Subtype 1", "Subtype 2", "Subtype 3"), 15),
+         sampsize = rep(c(10, 20, 30), each = 15),
+         label = rep(plotdat$label, each = 3))
+
+ggplot(ess_dat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = value, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  facet_wrap(~ combo) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Average ESS", 
+       fill = "Sample size",
+       title = "Average ESS by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- As the sample size per basket increases, we see decreasing ESS as the response probabilities become more heterogeneous. For example when the sample size is 30/basket, the ESS for subtype 1 is 83 when the response probabilities are equal, and decreases to 32 when pi1=0.1 and pi3=0.9.
+
+
+## Prior = 0.2
+
+```{r}
+# Run the function over all simulation settings
+# For prior = 0.5
+sim_res_all <- 
+  map(
+    16:30,
+    ~do_sim_summary(sim_res, .x)
+  )
+```
+
+```{r}
+# Want to determine the percentage of exchangeable MAPs for each setting
+ref_matrix <- 
+  matrix(
+    rep(1, 9),
+    nrow = 3,
+    dimnames = list(c("A", "B", "C"), c("A", "B", "C"))
+  )
+
+index_of_exchange <- 
+  map_dbl(1:15,
+      function(x) ifelse(
+        is.numeric(
+          which(
+            map_lgl(
+              sim_res_all[[x]][[3]][["map"]], 
+              function(y) identical(y, ref_matrix)
+              ) 
+            == TRUE
+            )),
+        which(
+            map_lgl(
+              sim_res_all[[x]][[3]][["map"]], 
+              function(y) identical(y, ref_matrix)
+              ) 
+            == TRUE
+            ),
+        NA
+        )
+      )
+
+exchange_freqs <- 
+  map_dbl(
+    1:15,
+    function(x) ifelse(
+      !is.na(index_of_exchange[x]),
+      sim_res_all[[x]][[3]][["frequency"]][[index_of_exchange[x]]],
+      0
+      )
+  )
+
+exchange_props <- exchange_freqs / 500
+
+pi1s <- 
+  map_dbl(
+    1:15, 
+    ~sim_res_all[[.x]][["pi"]][1]
+  )
+
+pi3s <- 
+  map_dbl(
+    1:15, 
+    ~sim_res_all[[.x]][["pi"]][3]
+  )
+
+sampsize <- 
+  map_dbl(
+    1:15,
+    ~sim_res_all[[.x]][["N"]]
+  )
+
+plotdat <- 
+  tibble(
+    pi1s,
+    pi3s,
+    exchange_props,
+    sampsize,
+    label = paste0("pi1 = ", pi1s, ", pi3 = ", pi3s)
+  )
+
+ggplot(plotdat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = exchange_props, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  ylim(0, 1) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Proportion of exchangeable MAPs", 
+       fill = "Sample size",
+       title = "Proportion of fully exchangeable MAPs by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+- When we reduce the prior probability of exchangeability from the default of 0.5 to 0.2, we see overall lower proportions of fully exchangeable MAPs, though the pattern across setting and sample size is similar to before.
+
+
+```{r}
+# Next summarize the PEP according to the input parameters
+# Make a similar plot to above but the y-axis is correlation
+# Need to use facets - one facet for each of the three correlations
+peps <- map(1:15, ~ sim_res_all[[.x]][[4]])
+peps_dat <-
+  map(1:15, ~ as.vector(peps[[.x]])[!as.vector(peps[[.x]]) %in% c(1, NA)]) %>% 
+  enframe() %>% 
+  unnest() %>% 
+  mutate(combo = rep(c("pi1,pi2", "pi1,pi3", "pi2,pi3"), 15),
+         sampsize = rep(c(10, 20, 30), each = 15),
+         label = rep(plotdat$label, each = 3))
+
+ggplot(peps_dat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = value, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  ylim(0, 1) +
+  facet_wrap(~ combo) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Average PEP", 
+       fill = "Sample size",
+       title = "Average PEP by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- Similarly, with the prior probability of exchangeability set to 0.2, the average PEPs for each pair of baskets are uniformly lower. 
+
+```{r}
+# Drill down into a couple of PEP scenarios
+# This function will extract the values I want into a dataframe for a single simulation setting
+testfun <- function(x){
+  map(
+    1:500, 
+    ~ as.vector(sim_res_all[[x]][["sim_res_pep"]][[.x]])[c(4, 7, 8)]) %>% 
+  enframe() %>% 
+  unnest() %>% 
+  mutate(combo = rep(c("pi1,pi2", "pi1,pi3", "pi2,pi3"), 500))
+}
+
+# Then here I map overall all 15 simulation settings and collapse the results from a list into a dataframe
+bigdf <- 
+  map_df(
+    1:15, 
+    testfun
+  )
+
+# Now need to get the vars related to each setting into the right format to merge with the pep results
+setdf <- plotdat %>% select(pi1s, pi3s, sampsize) %>% 
+  slice(rep(1:n(), each = 1500))
+
+# Finally combine the two
+pepdeets <- 
+  bind_cols(bigdf, setdf)
+
+# Let's limit to the case of pi1=0.4, pi3=0.6 and pi1=0.2, pi3=0.8
+pepsub <- 
+  pepdeets %>% 
+  filter((pi1s == 0.4 & pi3s == 0.6) |
+           (pi1s == 0.2 & pi3s == 0.8)) %>% 
+  mutate(label = paste0("pi1 = ", pi1s, ", pi3 = ", pi3s, ", n per basket = ", sampsize))
+
+# Plot the raw pep values in a faceted plot
+ggplot(pepsub, aes(x = value)) + 
+  geom_histogram(bins = 20) + 
+  facet_wrap(~ label) +
+  theme_ezbasic() +
+  labs(x = "PEP",
+       y = "Count", 
+       title = "Distribution of PEP by sample size (2 settings only)") +
+  theme(strip.text.x = element_text(size = 8))
+```
+
+
+```{r}
+# Finally summarize the ESS
+ess_dat <- map(1:15, ~ sim_res_all[[.x]][[5]]) %>% 
+  enframe() %>%
+  unnest() %>% 
+  mutate(combo = rep(c("Subtype 1", "Subtype 2", "Subtype 3"), 15),
+         sampsize = rep(c(10, 20, 30), each = 15),
+         label = rep(plotdat$label, each = 3))
+
+ggplot(ess_dat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = value, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  facet_wrap(~ combo) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Average ESS", 
+       fill = "Sample size",
+       title = "Average ESS by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- Finally, with the prior probability of exchangeability set to 0.2, ESS is lower in many cases, though the pattern across settings and sample sizes holds. For example when the sample size is 30/basket, the ESS for subtype 1 is 73 when the response probabilities are equal (was 83 with prior probability of exchangeability set to 0.5), and decreases to 32 when pi1=0.1 and pi3=0.9, which is equivalent to the setting when the prior probability of exchangeability was set to 0.5.
+
+
+
+## Prior = 0.8
+
+```{r}
+# Run the function over all simulation settings
+# For prior = 0.5
+sim_res_all <- 
+  map(
+    106:120,
+    ~do_sim_summary(sim_res, .x)
+  )
+```
+
+```{r}
+# Want to determine the percentage of exchangeable MAPs for each setting
+ref_matrix <- 
+  matrix(
+    rep(1, 9),
+    nrow = 3,
+    dimnames = list(c("A", "B", "C"), c("A", "B", "C"))
+  )
+
+index_of_exchange <- 
+  map_dbl(1:15,
+      function(x) ifelse(
+        is.numeric(
+          which(
+            map_lgl(
+              sim_res_all[[x]][[3]][["map"]], 
+              function(y) identical(y, ref_matrix)
+              ) 
+            == TRUE
+            )),
+        which(
+            map_lgl(
+              sim_res_all[[x]][[3]][["map"]], 
+              function(y) identical(y, ref_matrix)
+              ) 
+            == TRUE
+            ),
+        NA
+        )
+      )
+
+exchange_freqs <- 
+  map_dbl(
+    1:15,
+    function(x) ifelse(
+      !is.na(index_of_exchange[x]),
+      sim_res_all[[x]][[3]][["frequency"]][[index_of_exchange[x]]],
+      0
+      )
+  )
+
+exchange_props <- exchange_freqs / 500
+
+pi1s <- 
+  map_dbl(
+    1:15, 
+    ~sim_res_all[[.x]][["pi"]][1]
+  )
+
+pi3s <- 
+  map_dbl(
+    1:15, 
+    ~sim_res_all[[.x]][["pi"]][3]
+  )
+
+sampsize <- 
+  map_dbl(
+    1:15,
+    ~sim_res_all[[.x]][["N"]]
+  )
+
+plotdat <- 
+  tibble(
+    pi1s,
+    pi3s,
+    exchange_props,
+    sampsize,
+    label = paste0("pi1 = ", pi1s, ", pi3 = ", pi3s)
+  )
+
+ggplot(plotdat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = exchange_props, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  ylim(0, 1) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Proportion of exchangeable MAPs", 
+       fill = "Sample size",
+       title = "Proportion of fully exchangeable MAPs by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+- When the prior probability of exchangeability is set to 0.8, the proportion of fully exchangeable MAPs increases in most settings. For example, when the true response probabilities are equal across all three baskets, when sample size is 10/basket 89% of all simulated trials result in a MAP indicating full exchangeability across all baskets. 
+- Even when pi1=0.2 and pi3=0.8, when the sample size is 10/basket 18% of simulated trials still result in a MAP indicating full exchangeability across all baskets.
+
+
+```{r}
+# Next summarize the PEP according to the input parameters
+# Make a similar plot to above but the y-axis is correlation
+# Need to use facets - one facet for each of the three correlations
+peps <- map(1:15, ~ sim_res_all[[.x]][[4]])
+peps_dat <-
+  map(1:15, ~ as.vector(peps[[.x]])[!as.vector(peps[[.x]]) %in% c(1, NA)]) %>% 
+  enframe() %>% 
+  unnest() %>% 
+  mutate(combo = rep(c("pi1,pi2", "pi1,pi3", "pi2,pi3"), 15),
+         sampsize = rep(c(10, 20, 30), each = 15),
+         label = rep(plotdat$label, each = 3))
+
+ggplot(peps_dat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = value, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  ylim(0, 1) +
+  facet_wrap(~ combo) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Average PEP", 
+       fill = "Sample size",
+       title = "Average PEP by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- The higher prior probability of exchangeability also leads to increased average PEP in most settings. When the baskets have equivalent response probabilities, the average PEP for baskets 1 and 2 is 88% with a sample size of 10/basket, increasing to 96% when the sample size is 30/basket.
+
+```{r}
+# Drill down into a couple of PEP scenarios
+# This function will extract the values I want into a dataframe for a single simulation setting
+testfun <- function(x){
+  map(
+    1:500, 
+    ~ as.vector(sim_res_all[[x]][["sim_res_pep"]][[.x]])[c(4, 7, 8)]) %>% 
+  enframe() %>% 
+  unnest() %>% 
+  mutate(combo = rep(c("pi1,pi2", "pi1,pi3", "pi2,pi3"), 500))
+}
+
+# Then here I map overall all 15 simulation settings and collapse the results from a list into a dataframe
+bigdf <- 
+  map_df(
+    1:15, 
+    testfun
+  )
+
+# Now need to get the vars related to each setting into the right format to merge with the pep results
+setdf <- plotdat %>% select(pi1s, pi3s, sampsize) %>% 
+  slice(rep(1:n(), each = 1500))
+
+# Finally combine the two
+pepdeets <- 
+  bind_cols(bigdf, setdf)
+
+# Let's limit to the case of pi1=0.4, pi3=0.6 and pi1=0.2, pi3=0.8
+pepsub <- 
+  pepdeets %>% 
+  filter((pi1s == 0.4 & pi3s == 0.6) |
+           (pi1s == 0.2 & pi3s == 0.8)) %>% 
+  mutate(label = paste0("pi1 = ", pi1s, ", pi3 = ", pi3s, ", n per basket = ", sampsize))
+
+# Plot the raw pep values in a faceted plot
+ggplot(pepsub, aes(x = value)) + 
+  geom_histogram(bins = 20) + 
+  facet_wrap(~ label) +
+  theme_ezbasic() +
+  labs(x = "PEP",
+       y = "Count", 
+       title = "Distribution of PEP by sample size (2 settings only)") +
+  theme(strip.text.x = element_text(size = 8))
+```
+
+
+```{r}
+# Finally summarize the ESS
+ess_dat <- map(1:15, ~ sim_res_all[[.x]][[5]]) %>% 
+  enframe() %>%
+  unnest() %>% 
+  mutate(combo = rep(c("Subtype 1", "Subtype 2", "Subtype 3"), 15),
+         sampsize = rep(c(10, 20, 30), each = 15),
+         label = rep(plotdat$label, each = 3))
+
+ggplot(ess_dat, aes(x = forcats::fct_rev(factor(label)), 
+                    y = value, 
+                    fill = factor(sampsize))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = ccf_palette("main")) +
+  facet_wrap(~ combo) +
+  theme_ezbasic(legend_title = TRUE) +
+  labs(x = "",
+       y = "Average ESS", 
+       fill = "Sample size",
+       title = "Average ESS by setting") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+- With the prior probability of exchangeability set to 0.8, ESS is not substantially different from the results when the prior probability of exchangeability was set to 0.5. For example, when the sample size is 30/basket and the response rates are equal, the ESS for subtype 1 is 88 (previously 83), and decreases to 34 when pi1=0.1 and pi3=0.9 (previously 32).
+
+
+
+
+```{r}
+knit_exit()
+```
+
+
+
+
+
+# Results details
+
+```{r  include = FALSE}
+# Loop over the different simulation settings to print the results
+out <- NULL
+for (i in 1:15) {
+  out <- c(out, knit_child('heterogeneous_response_sim_child.Rmd'))
+}
+```
+
+```{r results = "asis"}
+cat(paste(out, collapse = '\n'))
+```
