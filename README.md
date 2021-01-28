@@ -4,6 +4,25 @@ This repository contains statistical code and data related to peer-reviewed publ
 
 ***
 
+## Eaton-Zabor_Interval-RFS-sim-study
+
+Files:
+
+- `fn-create-single-dataset.R` function to simulate a single interval censored dataset
+- `fn-fit-models.R` function to fit each of the models included in the paper
+- `fn-tidy-ic_sp.R` helper function to tidy the results from icenReg::ic_sp() function
+- `program1-run-simulation.R` program to run a simulation for a given scenario and summarize results
+
+Instructions:
+1. Download all files to the same directory
+2. Open `program1-run-simulation.R`
+3. Install the `cwcens` package in R from `remotes::install_github("anneae/cwcens")`
+4. Either set your working directory or alter the file paths for the 3 function files in the section "Load functions"
+5. Change the parameters of interest in the section "Generate many datasets", including possibly the number of simulated datasets and the seed
+6. In the section "Prepare data to summarize" you will need to change the truth to appropriately match the setting you are examining. In the example the HR for both recurrence and death were set to 1.5 so the true log HR in all cases is log(1.5)
+7. Run all code in the file to fit the models and summarize the results with a boxplot and table
+
+
 ## Zabor_Basket-Trial-with-FDR-Control
 
 This paper contains three distinct parts:
@@ -40,10 +59,6 @@ This paper contains three distinct parts:
 ***
 
 ## Zabor_Validity-of-a-method-for-etiologic-heterogeneity
-
-Published citation:
-
-
 
 Files:
 
