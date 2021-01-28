@@ -22,6 +22,7 @@ Instructions:
 6. In the section "Prepare data to summarize" you will need to change the truth to appropriately match the setting you are examining. In the example the HR for both recurrence and death were set to 1.5 so the true log HR in all cases is log(1.5)
 7. Run all code in the file to fit the models and summarize the results with a boxplot and table
 
+***
 
 ## Zabor_Basket-Trial-with-FDR-Control
 
