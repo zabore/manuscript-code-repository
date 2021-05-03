@@ -12,7 +12,7 @@ fitsimmod <-
           data = df
         ) %>% 
           broom::tidy(conf.int = TRUE) %>% 
-          select(estimate) %>% 
+          select(estimate, conf.low, conf.high) %>% 
           mutate(model = "Cox RFS - lastobs1")
         tab$issue <- NA
         tab
@@ -22,7 +22,7 @@ fitsimmod <-
           data = df
         ) %>% 
           broom::tidy(conf.int = TRUE) %>% 
-          select(estimate) %>% 
+          select(estimate, conf.low, conf.high) %>% 
           mutate(model = "Cox RFS - lastobs1")
         tab$issue <- "w"
         tab
@@ -32,7 +32,7 @@ fitsimmod <-
           data = df
         ) %>% 
           broom::tidy(conf.int = TRUE) %>% 
-          select(estimate) %>% 
+          select(estimate, conf.low, conf.high) %>% 
           mutate(model = "Cox RFS - lastobs1")
         tab$issue <- "e"
         tab
@@ -46,7 +46,7 @@ fitsimmod <-
             data = df
           ) %>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Cox RFS - dtime")
           tab$issue <- NA
           tab
@@ -56,7 +56,7 @@ fitsimmod <-
             data = df
           ) %>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Cox RFS - dtime")
           tab$issue <- "w"
           tab
@@ -66,7 +66,7 @@ fitsimmod <-
             data = df
           ) %>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Cox RFS - dtime")
           tab$issue <- "e"
           tab
@@ -82,7 +82,7 @@ fitsimmod <-
             data = df
           ) %>% 
             tidy_ic_sp() %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Interval RFS - lastobs1")
           tab$issue <- NA
           tab
@@ -94,7 +94,7 @@ fitsimmod <-
             data = df
           ) %>% 
             tidy_ic_sp() %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Interval RFS - lastobs1")
           tab$issue <- "w"
           tab
@@ -106,7 +106,7 @@ fitsimmod <-
             data = df
           ) %>% 
             tidy_ic_sp() %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Interval RFS - lastobs1")
           tab$issue <- "e"
           tab
@@ -122,7 +122,7 @@ fitsimmod <-
             data = df
           ) %>% 
             tidy_ic_sp() %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Interval RFS - dtime")
           tab$issue <- NA
           tab
@@ -134,7 +134,7 @@ fitsimmod <-
             data = df
           ) %>% 
             tidy_ic_sp() %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Interval RFS - dtime")
           tab$issue <- "w"
           tab
@@ -146,7 +146,7 @@ fitsimmod <-
             data = df
           ) %>% 
             tidy_ic_sp() %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "Interval RFS - dtime")
           tab$issue <- "e"
           tab
@@ -160,7 +160,7 @@ fitsimmod <-
             data = df
           )%>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "CS Cox recurrence")
           tab$issue <- NA
           tab
@@ -170,7 +170,7 @@ fitsimmod <-
             data = df
           )%>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "CS Cox recurrence")
           tab$issue <- "w"
           tab
@@ -180,7 +180,7 @@ fitsimmod <-
             data = df
           )%>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "CS Cox recurrence")
           tab$issue <- "e"
           tab
@@ -194,7 +194,7 @@ fitsimmod <-
             data = df
           )%>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "CS Cox death")
           tab$issue <- NA
           tab
@@ -204,7 +204,7 @@ fitsimmod <-
             data = df
           )%>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "CS Cox death")
           tab$issue <- "w"
           tab
@@ -214,50 +214,50 @@ fitsimmod <-
             data = df
           )%>% 
             broom::tidy(conf.int = TRUE) %>% 
-            select(estimate) %>% 
+            select(estimate, conf.low, conf.high) %>% 
             mutate(model = "CS Cox death")
           tab$issue <- "e"
           tab
         })
       ) %>% 
-      add_row(
-        # Cox interval censoring model for recurrence
-        tryCatch({
-          tab <- ic_sp(
-            Surv(left_time2, right_time2, type = "interval2") ~ z,
-            model = "ph",
-            bs_samples = B,
-            data = df
-          ) %>% 
-            tidy_ic_sp() %>% 
-            select(estimate) %>% 
-            mutate(model = "CS Interval recurrence")
-          tab$issue <- NA
-          tab
-        }, warning = function(w){
-          tab <- ic_sp(
-            Surv(left_time2, right_time2, type = "interval2") ~ z,
-            model = "ph",
-            bs_samples = B,
-            data = df
-          ) %>% 
-            tidy_ic_sp() %>% 
-            select(estimate) %>% 
-            mutate(model = "CS Interval recurrence")
-          tab$issue <- "w"
-          tab
-        }, error = function(e){
-          tab <- ic_sp(
-            Surv(left_time2, right_time2, type = "interval2") ~ z,
-            model = "ph",
-            bs_samples = B,
-            data = df
-          ) %>% 
-            tidy_ic_sp() %>% 
-            select(estimate) %>% 
-            mutate(model = "CS Interval recurrence")
-          tab$issue <- "e"
-          tab
-        })
-      ) 
+    add_row(
+      # Cox interval censoring model for recurrence
+      tryCatch({
+        tab <- ic_sp(
+          Surv(left_time2, right_time2, type = "interval2") ~ z,
+          model = "ph",
+          bs_samples = B,
+          data = df
+        ) %>% 
+          tidy_ic_sp() %>% 
+          select(estimate, conf.low, conf.high) %>% 
+          mutate(model = "CS Interval recurrence")
+        tab$issue <- NA
+        tab
+      }, warning = function(w){
+        tab <- ic_sp(
+          Surv(left_time2, right_time2, type = "interval2") ~ z,
+          model = "ph",
+          bs_samples = B,
+          data = df
+        ) %>% 
+          tidy_ic_sp() %>% 
+          select(estimate, conf.low, conf.high) %>% 
+          mutate(model = "CS Interval recurrence")
+        tab$issue <- "w"
+        tab
+      }, error = function(e){
+        tab <- ic_sp(
+          Surv(left_time2, right_time2, type = "interval2") ~ z,
+          model = "ph",
+          bs_samples = B,
+          data = df
+        ) %>% 
+          tidy_ic_sp() %>% 
+          select(estimate, conf.low, conf.high) %>% 
+          mutate(model = "CS Interval recurrence")
+        tab$issue <- "e"
+        tab
+      })
+    ) 
   }

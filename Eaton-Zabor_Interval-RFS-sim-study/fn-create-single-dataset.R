@@ -22,8 +22,9 @@ makesimdat <-
           scale12 = 1 / .0008,
           scale13 = 1 / .0002,
           scale23 = 1 / .0016,
-          visit.schedule = 30.4 * seq(mos_z0, 48, mos_z0),
-          dependent.visit = NULL
+          visit.schedule = 30.4 * seq(mos_z0, 72, mos_z0),
+          dependent.visit = NULL, 
+          vital.lfu = c(0, 30.4 * 72)
         )
       
       grp1 <- 
@@ -32,8 +33,9 @@ makesimdat <-
           scale12 = (1 / .0008) / hr12,
           scale13 = (1 / .0002) / hr13,
           scale23 = (1 / .0016) / hr23,
-          visit.schedule = 30.4 * seq(mos_z1, 48, mos_z1),
-          dependent.visit = NULL
+          visit.schedule = 30.4 * seq(mos_z1, 72, mos_z1),
+          dependent.visit = NULL, 
+          vital.lfu = c(0, 30.4 * 72)
         )
     } else if(dv == TRUE) {
       grp0 <- 
@@ -42,8 +44,9 @@ makesimdat <-
           scale12 = 1 / .0008,
           scale13 = 1 / .0002,
           scale23 = 1 / .0016,
-          visit.schedule = 30.4 * seq(mos_z0, 48, mos_z0),
-          dependent.visit = c(30.4, 30.4/3)
+          visit.schedule = 30.4 * seq(mos_z0, 72, mos_z0),
+          dependent.visit = c(30.4, 30.4/3), 
+          vital.lfu = c(0, 30.4 * 72)
         )
       
       grp1 <- 
@@ -52,8 +55,9 @@ makesimdat <-
           scale12 = (1 / .0008) / hr12,
           scale13 = (1 / .0002) / hr13,
           scale23 = (1 / .0016) / hr23,
-          visit.schedule = 30.4 * seq(mos_z1, 48, mos_z1),
-          dependent.visit = c(30.4, 30.4/3)
+          visit.schedule = 30.4 * seq(mos_z1, 72, mos_z1),
+          dependent.visit = c(30.4, 30.4/3), 
+          vital.lfu = c(0, 30.4 * 72)
         )
     }
     

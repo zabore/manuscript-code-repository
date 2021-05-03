@@ -25,7 +25,7 @@ datalist <- map(1:S,
                 ~makesimdat(hr12 = 1.5, 
                             hr13 = 1.5,
                             hr23 = 1, 
-                            mos_z0 = 6,
+                            mos_z0 = 12,
                             mos_z1 = 6,
                             n = 100,
                             dv = FALSE)
@@ -33,7 +33,7 @@ datalist <- map(1:S,
 
 
 # Then fit the models to the datasets -----------------------------------------
-# Note that this took 815 seconds (~13.5 minutes) on my machine
+# Note that this will take some time to run given the need to bootstrap confidence intervals for all interval Cox models
 modfitlist <- 
   datalist %>% 
   # First we need to code the various endpoints
@@ -84,7 +84,7 @@ modfitlist <-
         )
   ) %>% 
   # Then fit the models to each dataset
-  map(~fitsimmod(df = .x))
+  map(~fitsimmod(df = .x, B = 100))
 
 
 # Prepare data to summarize --------------------------------------------------
@@ -107,9 +107,9 @@ res_box <-
     bias = log_hr - truth) %>%
   mutate(
     model = fct_relevel(model, "Cox RFS - lastobs1", "Cox RFS - dtime",
-                        "Interval RFS - lastobs1", "Interval RFS - dtime",
-                        "CS Cox death", 
-                        "CS Cox recurrence", "CS Interval recurrence")
+                        "Interval RFS - lastobs1", "Interval RFS - dtime", 
+                        "CS Cox recurrence", "CS Interval recurrence",
+                        "CS Cox death")
   )
 
 ggplot(res_box, aes(x = model, y = bias)) + 
@@ -138,9 +138,9 @@ res_tbl <-
   ungroup() %>%
   mutate(
     model = fct_relevel(model, "Cox RFS - lastobs1", "Cox RFS - dtime",
-                        "Interval RFS - lastobs1", "Interval RFS - dtime",
-                        "CS Cox death", 
-                        "CS Cox recurrence", "CS Interval recurrence")
+                        "Interval RFS - lastobs1", "Interval RFS - dtime", 
+                        "CS Cox recurrence", "CS Interval recurrence",
+                        "CS Cox death")
   )
 
 knitr::kable(res_tbl, digits = 3)
