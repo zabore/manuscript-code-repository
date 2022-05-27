@@ -4,6 +4,23 @@ This repository contains statistical code and data related to peer-reviewed publ
 
 ***
 
+## Zabor_Randomized-Biomarker-Guided Designs
+
+Data, data generating scripts, and analysis scripts for the three designs are available:
+
+1. Pooled control arm design
+    - `data\1-pooled-generate-data.R` script to generate the simulated trial data for the pooled control arm design
+    - `data\p-sim-dat.rda` resulting simulated pooled control arm trial data
+2. Stratified control arm design
+    - `data\1-stratified-generate-data.R` script to generate the simulated trial data for the stratified control arm design
+    - `data\s-sim-dat.rda` resulting simulated stratified control arm trial data
+3. Enrichment design
+
+*Note that these files were organized in an elaborate folder structure with a top-level R project and all filepaths used `here::here` relative to the R project. Please alter the filepaths accordingly.*
+*Note that no data file or data generating script is included with the enrichment design since data from the pooled control group design were utilized for stage 1 and data from the stratified control group design were utilized for stage 2*
+
+***
+
 ## Eaton-Zabor_Interval-RFS-sim-study
 
 Files:
