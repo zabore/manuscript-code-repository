@@ -11,13 +11,20 @@ Data, data generating scripts, and analysis scripts for the three designs are av
 1. Pooled control arm design
     - `data\1-pooled-generate-data.R` script to generate the simulated trial data for the pooled control arm design
     - `data\p-sim-dat.rda` resulting simulated pooled control arm trial data
+    - `analysis\2-pooled-apply-ppseq.R` script to run the analysis for the pooled control arm design
+    - `analysis\p-ppseq-res.rda` analysis results to obtain operating characteristics for the pooled control arm design
 2. Stratified control arm design
     - `data\1-stratified-generate-data.R` script to generate the simulated trial data for the stratified control arm design
     - `data\s-sim-dat.rda` resulting simulated stratified control arm trial data
+    - `analysis\2-stratified-apply-ppseq.R` script to run the analysis for the stratified control arm design
+    - `analysis\s-ppseq-res.rda` analysis results to obtain operating characteristics for the stratified control arm design
 3. Enrichment design
+    - `analysis\1-enrichment-apply-ppseq.R` script to run the analysis for the enrichment design
+    - `analysis\e-ppseq-res.rda` analysis results to obtain operating characteristics for the enrichment design
 
-*Note that these files were organized in an elaborate folder structure with a top-level R project and all filepaths used `here::here` relative to the R project. Please alter the filepaths accordingly.*
-*Note that no data file or data generating script is included with the enrichment design since data from the pooled control group design were utilized for stage 1 and data from the stratified control group design were utilized for stage 2*
+Notes:
+- these files were organized in an elaborate folder structure with a top-level R project and all filepaths used `here::here` relative to the R project. Please alter the filepaths accordingly
+- no data file or data generating script is included with the enrichment design since data from the pooled control group design were utilized for stage 1 and data from the stratified control group design were utilized for stage 2
 
 ***
 
