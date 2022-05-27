@@ -23,6 +23,9 @@ Data, data generating scripts, and analysis scripts for the three designs are av
 
 ## Eaton-Zabor_Interval-RFS-sim-study
 
+Reference:
+> Eaton AA, Zabor EC. Analysis of composite endpoints with component-wise censoring in the presence of differential visit schedules. Stat Med. 2022 Apr 30;41(9):1599-1612. doi: 10.1002/sim.9312. Epub 2022 Jan 18. PMID: 35043427.
+
 Files:
 
 - `fn-create-single-dataset.R` function to simulate a single interval censored dataset
@@ -42,6 +45,9 @@ Instructions:
 ***
 
 ## Zabor_Basket-Trial-with-FDR-Control
+
+Reference:
+> Zabor EC, Kane MJ, Roychoudhury S, Nie L, Hobbs BP. Bayesian basket trial design with false-discovery rate control. Clin Trials. 2022 Feb 7:17407745211073624. doi: 10.1177/17407745211073624. Epub ahead of print. PMID: 35128970.
 
 This paper contains three distinct parts:
 
@@ -77,6 +83,9 @@ This paper contains three distinct parts:
 ***
 
 ## Zabor_Validity-of-a-method-for-etiologic-heterogeneity
+
+Reference:
+> Zabor EC, Seshan VE, Wang S, Begg CB. Validity of a method for identifying disease subtypes that are etiologically heterogeneous. Stat Methods Med Res. 2021 Sep;30(9):2045-2056. doi: 10.1177/09622802211032704. Epub 2021 Jul 28. PMID: 34319833.
 
 Files:
 
