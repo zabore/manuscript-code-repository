@@ -7,31 +7,27 @@ library(cwcens)
 library(survival)
 library(survminer)
 library(patchwork)
+library(tidyr)
 
 
 # Generate the simulated data ---
 
 # Generate visit schedule every 8 weeks, on days scale
-visit.schedule.8 <- 7 * seq(8, 104, 8)
-
-# Set the seed for reproducibility
+visit.schedule.8 <- 7 * c(8, 16, 24, 32, 40, 48, 
+                          56, 64, 72, 80, 88, 96, 104)
 set.seed(108)
-
 dat75 <- NULL
-
 #### Treatment group 
 for (i in 1:500){
-  if (rbinom(1,1, .25)==1) visit.schedule <- visit.schedule.8
-  else {
-    enroll<- runif(1, min=0, max = 7*48) # When in calendar year 2019 they enrolled
-    ttcovid <- (7*48-enroll) + 7*10 # followup in 2019 + 10 weeks of 2020  before covid
-    visit.schedule <- c(visit.schedule.8[visit.schedule.8<ttcovid]) # pre covid visits
-    last.normal <- max(0, tail(visit.schedule, 1))
-    if (last.normal+7*24 < 7*104) visit.schedule <- 
-      c(visit.schedule, seq(from = last.normal+7*24, to = 7*104, by = 7*24))
-  }
-  # Follow everyone until 104 weeks
-  dat <- simdat(1, visit.schedule = visit.schedule, vital.lfu = c(7*105), 
+  enroll<- floor(runif(1, min=0, max = 365)) # day in calendar year 2019 they enrolled
+  ttcovid <- (365 - enroll) + 75 # followup in 2019 + through March 15, 2020 = 75 days in 2020
+  visit.schedule <- visit.schedule.8[visit.schedule.8<ttcovid] # pre covid visits
+  last.normal <- tail(visit.schedule, 1) # last normal visit
+  if (last.normal + floor(30.4 * 9) < 365 * 2) visit.schedule <- 
+    c(visit.schedule, seq(from = last.normal + floor(30.4 * 9), to = 365 * 2, by = 7 * 8))
+  
+  # Follow everyone for 2 years
+  dat <- simdat(1, visit.schedule = visit.schedule, vital.lfu = 2*365.25, 
                 scale12 = (1/0.5)*1/16e-04, scale13 = (1/0.5)*1/2e-04)
   dat$grp <- 'trt'
   dat$lastnormal<-last.normal
@@ -50,15 +46,13 @@ for (i in 1:500){
 
 #### Add control group
 for (i in 1:500){
-  if (rbinom(1,1, .25)==1) visit.schedule <- visit.schedule.8
-  else {
-    enroll<- runif(1, min=0, max = 7*48) # When in calendar year 2019 they enrolled
-    ttcovid <- (7*48-enroll) + 7*10 # followup in 2019 + 10 weeks of 2020  before covid
-    visit.schedule <- c(visit.schedule.8[visit.schedule.8<ttcovid]) # pre covid visits
-    last.normal <- max(0, tail(visit.schedule, 1))
-    if (last.normal+7*24 < 7*104) visit.schedule <- 
-      c(visit.schedule, seq(from = last.normal+7*24, to = 7*104, by = 7*24))
-  }
+  enroll<- floor(runif(1, min=0, max = 365)) # day in calendar year 2019 they enrolled
+  ttcovid <- (365 - enroll) + 75 # followup in 2019 + 3 months before COVID-related site closure (April 1, 2020)
+  visit.schedule <- visit.schedule.8[visit.schedule.8<ttcovid] # pre covid visits
+  last.normal <- tail(visit.schedule, 1) # last normal visit
+  if (last.normal + floor(30.4 * 9) < 365 * 2) visit.schedule <- 
+    c(visit.schedule, seq(from = last.normal + floor(30.4 * 9), to = 365 * 2, by = 7 * 8))
+  
   dat <- simdat(1, visit.schedule = visit.schedule, vital.lfu = c(7*105), 
                 scale12 = 1/16e-04)
   dat$grp <- 'con'
@@ -81,7 +75,6 @@ dat75$nvisits<-max(dat75$nvisits)
 dat75$time <- pmin(dat75$dtime, dat75$state2obs)
 dat75$event <- ifelse(dat75$state2obs<Inf, 1, dat75$dstatus)
 dat75$time[dat75$event==0]<-dat75$laststate1[dat75$event == 0]
-dat75$pctdelay<-75
 
 
 # Make Figure 2 ---
@@ -97,7 +90,7 @@ ex2p1 <-
     xlim = c(0, 80),
     legend.labs = c('Standard of care','New treatment'),
     xlab = "Weeks from randomization",
-    ylab = "Progression-free survival probability",
+    ylab = "Recurrence-free survival probability",
     legend.title = "",
     palette = mycolors,
     font.y = 12,
@@ -109,9 +102,9 @@ ex2p1 <-
 # Figure 2B
 ex2p2v2 <- 
   dat75 %>% 
-  select(grp, t1:t13) %>% 
+  select(grp, t1:t9) %>% 
   pivot_longer(
-    cols = t1:t13,
+    cols = t1:t9,
     names_prefix = "t",
     names_to = "visit_number",
     values_to = "visit_time"
@@ -232,3 +225,41 @@ ex2p2 <-
 (ex2p1$plot + ex2p2v2 / ex2p2) / guide_area() + 
   plot_layout(guides = "collect", heights = c(4, 1)) +
   plot_annotation(tag_levels = 'A', tag_suffix = ')')
+
+
+
+############# Cox models 
+
+# censor at last disease free
+time <- pmin(dat75$dtime, dat75$state2obs)
+event <- ifelse(dat75$state2obs<Inf, 1, dat75$dstatus)
+time[event==0]<-dat75$laststate1[event == 0]
+summary(coxph(Surv(time, event)~ dat75$grp))
+
+############# msm models 
+library(msm)
+# dat<- dat25; set.seed(609)
+# dat<-dat50
+dat<- dat75; set.seed(2)
+
+dat$id<-1:nrow(dat)
+df_msm<-NULL
+for (i in 1:nrow(dat)){
+  id<-dat$id[i]; group = dat$grp[i]
+  df_msm <- rbind(df_msm, data.frame(id = id, group = group, time = 0, state = 1, laststate1=dat$laststate1[i], state2obs = dat$state2obs[i]))
+  df_msm <- rbind(df_msm, data.frame(id = id, group = group, time = dat$laststate1[i], state = 1, laststate1=dat$laststate1[i], state2obs = dat$state2obs[i]))
+  if (dat$state2obs[i]<Inf) 
+    df_msm <- rbind(df_msm, data.frame(id = id, group = group, time = dat$state2obs[i], state = 2, laststate1=dat$laststate1[i], state2obs = dat$state2obs[i]))
+  if (dat$laststate1[i]!=dat$dtime[i]) 
+    df_msm <- rbind(df_msm, data.frame(id = id, group = group, time = dat$dtime[i], state = ifelse(dat$dstatus[i]==1,3,4), laststate1=dat$laststate1[i], state2obs = dat$state2obs[i])) 
+}
+
+Q <- rbind (c(0, 1, 1),
+            c(0, 0, 1), 
+            c(0, 0, 0))
+
+mymsm <- msm( state ~ time, subject=id, data = df_msm, qmatrix = Q, deathexact = 3, 
+              gen.inits = T, covariates = ~group, censor = 4, censor.states = c(1,2), 
+              constraint = list(grouptrt = c(1,1,2))) 
+mymsm
+

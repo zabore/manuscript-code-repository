@@ -18,7 +18,7 @@ age <- rnorm(n, 65, 10) # age is normally distributed with mean 65 and standard 
 trt <- rbinom(n, 1, p = ifelse(enroll_day < 790, .4, .9))  # treatment is generated from a binomial distribution with 40% probability of reduced intensity pre-Covid, and 90% probability of reduced intensity post-Covid (Covid = March 1, 2020)
 
 # Cancer death day is exponentially distributed, and the rate increases with age
-cancer_death <- enroll_day + rexp(n , rate = exp(-10 + .0012 * age ^ 2)) 
+cancer_death <- enroll_day + rexp(n , rate = exp(-10 + .0012 * age ^ 2))
 
 # Covid death is exponentially distributed, and the rate increases with age - risk of Covid death starts after day 790
 covid_death <- pmax(enroll_day, 790) + rexp(n, rate =  exp(-10 + .0015 * age ^ 2))
@@ -28,11 +28,11 @@ covid_death <- covid_death - enroll_day
 cens <- 365 * 4 - enroll_day # censored on December 31, 2021
 
 time <- pmin(cancer_death, covid_death, cens)
-event <- 1*(time == cancer_death) + 2 * (time == covid_death) 
+event <- 1*(time == cancer_death) + 2 * (time == covid_death)
 
 dat <- tibble(
-  time = time, 
-  event = event, 
+  time = time,
+  event = event,
   trt = trt,
   age = age,
   agesq = age^2
@@ -58,17 +58,17 @@ dat_onep <- tibble(
   time = fit_onep[["time"]],
   surv = fit_onep[["surv"]],
   event = ifelse(fit_onep[["n.event"]] > 0, 1, 0)
-  ) %>% 
-  filter(event == 1) %>% 
+  ) %>%
+  filter(event == 1) %>%
   mutate(
     covid = round(time, 10) %in% round(covid_event_times/365, 10)
-  ) %>% 
-  filter(covid) %>% 
+  ) %>%
+  filter(covid) %>%
   mutate(type = "COVID-19 death")
 
 one <- ggsurvplot(
-  fit_onep, 
-  censor = F, 
+  fit_onep,
+  censor = F,
   xlim = c(0, 2),
   legend.labs = c('Standard schedule','Reduced frequency schedule'),
   xlab = "Years",
@@ -82,20 +82,20 @@ one <- ggsurvplot(
   risk.table = T,
   tables.theme = theme_cleantable(),
   risk.table.y.text = F
-) 
+)
 
 # Modify the plot but not the risktable
-one$plot <- one$plot + 
+one$plot <- one$plot +
   geom_point(data = dat_onep, aes(x = time, y = surv, shape = type)) +
-  scale_shape_manual(values = 3)+ 
+  scale_shape_manual(values = 3) +
   theme(legend.title = element_blank())
 
 
 # Kaplan-Meier plot with COVID-19 deaths censored ------------------------------
 # This is Figure 1B
 two <- ggsurvplot(
-  survfit(Surv(time/365, event==1)~trt, data = dat), 
-  censor = F, 
+  survfit(Surv(time/365, event==1)~trt, data = dat),
+  censor = F,
   xlim = c(0, 2),
   legend.labs = c('Standard schedule','Reduced frequency schedule'),
   xlab = "Years",
@@ -111,102 +111,38 @@ two <- ggsurvplot(
   tables.theme = theme_cleantable(),
   risk.table.y.text = F
 )
-
-
-# Cumulative incidence plot for competing risks --------------------------------
-# This is Figure 1C 
-fit_three <- cuminc(ftime = dat$time/365, fstatus = dat$event, group = dat$trt)
-
-ciplotdat <- 
-  fit_three %>% 
-  list_modify("Tests" = NULL) %>% 
-  map_df(`[`, c("time", "est"), .id = "id") %>% 
-  filter(id %in% c("0 1", "1 1")) %>% 
-  mutate(trt = recode(
-    id, 
-    "0 1" = "Standard schedule", 
-    "1 1" = "Reduced frequency schedule"),
-    trt = forcats::fct_rev(trt)
-  )
-
-three <- ggplot(ciplotdat, aes(x = time, y = est, color = trt)) +
-  geom_step(lwd = 1)  +
-  ylim(c(0, 1)) +
-  scale_x_continuous(breaks = seq(0, 2, 0.5), limits = c(0, 2)) +
-  theme_classic() +
-  scale_color_brewer(palette = "Set1") +
-  theme(axis.text = element_text(size = 12),
-        legend.title = element_blank(),
-        legend.position = "none") +
-  labs(x = "Years", 
-       y = "Cumulative incidence") 
-
-# Need to get the numbers at risk table
-fit_three_rt <- survfit(Surv(time/365, event %in% c(1, 2))~trt, data = dat)
-
-three_num <-
-  ggsurvplot(
-  fit_three_rt, 
-  censor = F, 
-  xlim = c(0, 2),
-  legend.labs = c('Standard schedule','Reduced frequency schedule'),
-  xlab = "Years",
-  legend.title = "",
-  legend = "none",
-  palette = "Set1",
-  # palette = ezfun::ccf_palette("contrast")[c(1, 5)],
-  font.y = 12,
-  font.x = 12,
-  font.legend = 12,
-  break.time.by = 0.5,
-  risk.table = T,
-  tables.theme = theme_cleantable(),
-  risk.table.y.text = F
-)
-
-three_rt <-
-  cowplot::plot_grid(
-    three, 
-    three_num$table + theme_cleantable(), 
-    nrow = 2, 
-    rel_heights = c(4, 1), 
-    align = "v", 
-    axis = "b"
-    )
-
-three_rt
 
 
 # K-M plot with IPCW -----------------------------------------------------------
-# This is Figure 1D
+# This is Figure 1C
 
-### Plot KM curves dealing with death due to COVID-19 using IPCW 
+### Plot KM curves dealing with death due to COVID-19 using IPCW
 ### First, make a long dataset (counting process format)  with separate rows for
-### before and after COVID, so you can fit a model for censoring stratified on covid "era" 
-### as a time-varying stratification factor 
+### before and after COVID, so you can fit a model for censoring stratified on covid "era"
+### as a time-varying stratification factor
 before_covid <- data.frame(id = 1:n, enroll_day, agesq = age^2, time, event, trt,
                            covid = 0,
-                           start = 0, end = pmin(pmax(0, 790-enroll_day), time),  
-                           cens_cov = (event==2 & time <= pmax(0, 790-enroll_day)), 
+                           start = 0, end = pmin(pmax(0, 790-enroll_day), time),
+                           cens_cov = (event==2 & time <= pmax(0, 790-enroll_day)),
                            death_cancer= (event == 1 & time <= pmax(0, 790-enroll_day)))
 
 after_covid <- data.frame(id = 1:n, enroll_day, agesq = age^2, time, event, trt,
                           covid = 1,
-                          start = pmin(pmax(0, 790-enroll_day), time), end =  time,  
-                          cens_cov = (event==2 & time > pmax(0, 790-enroll_day)), 
+                          start = pmin(pmax(0, 790-enroll_day), time), end =  time,
+                          cens_cov = (event==2 & time > pmax(0, 790-enroll_day)),
                           death_cancer= (event == 1 & time > pmax(0, 790-enroll_day)))
 dat_long<- rbind(before_covid, after_covid)
 dat_long<-dat_long[dat_long$end>dat_long$start, ]
 dat_long<-dat_long[order(dat_long$id, dat_long$start),]
 
 # Since there is no censoring due to COVID before COVID, you don't actually need to fit
-# a stratified model. Before COVID, there are no events, so you can just fit a model 
-# to the after-COVID data. 
+# a stratified model. Before COVID, there are no events, so you can just fit a model
+# to the after-COVID data.
 # mod <- coxph(Surv(start, end, cens_cov)~agesq + strata(covid), data=dat_long)
 mod <- coxph(Surv(start, end, cens_cov)~agesq, data=dat_long[dat_long$covid==1,])
 
-# Next, make a super-long dataset with a row for each person, for each event time. 
-# This is needed because 
+# Next, make a super-long dataset with a row for each person, for each event time.
+# This is needed because
 times <- sort(unique(dat_long$end))
 data.long <- survSplit(dat_long, cut = times, end = "end",start = "start",
                        event = "death_cancer")
@@ -237,13 +173,13 @@ for (i in IDs){
 data.long$wc <- 1/data.long$p_nocens_tot
 summary(data.long$wc)
 
-# Fit the weighted model 
-fit_four <- survfit(Surv(start/365, end/365, death_cancer)~ trt, 
+# Fit the weighted model
+fit_four <- survfit(Surv(start/365, end/365, death_cancer)~ trt,
                     weight = wc, data=data.long)
 
 four <- ggsurvplot(
-  fit_four, 
-  censor = F, 
+  fit_four,
+  censor = F,
   xlim = c(0, 2),
   legend.labs = c('Standard schedule','Reduced frequency schedule'),
   xlab = "Years",
@@ -260,10 +196,9 @@ four <- ggsurvplot(
   risk.table.y.text = F
 )
 
-four
+
 
 # Combined plot for manuscript ---
-# For now, this doesn't have the 
-((one$plot | two$plot) / (three | four$plot)) / guide_area() + 
+((one$plot | two$plot) / (four$plot | plot_spacer())) / guide_area() + 
   plot_layout(guides = "collect", heights = c(4, 4, 1)) +
   plot_annotation(tag_levels = 'A', tag_suffix = ')')
