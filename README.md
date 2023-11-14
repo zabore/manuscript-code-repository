@@ -1,15 +1,6 @@
 # Manuscript code repository
 
-This repository contains statistical code and data related to peer-reviewed published manuscripts. The goal is to increase transparency and reproducibility in research.
-
-***
-
-## Zabor-Eaton_Estimand-Intercurrent-Oncology
-
-R code files to generate the simulated data and associated analyses are available:
-
-1. Example 1 - `example1-code.R` script to generate the simulated trial data and conduct the associated analysis for Example 1
-2. Example 2 - `excample2-code.R` script to generate the simulated trial data and conduct the associated analysis for Example 2
+This repository contains statistical code and data related to published manuscripts and book chapters. The goal is to increase transparency and reproducibility in research.
 
 ***
 
