@@ -4,7 +4,23 @@ This repository contains statistical code and data related to published manuscri
 
 ***
 
+## Zabor_Clinical-Opthalmic-Oncology-Cancer-Survival
+
+Synthetic data file, R code, and resuting Quarto report associated with all results included in the book chapter are available:
+
+Files:
+
+- `uveal_survival_data.csv` synthetic dataset in csv format
+- `uveal_survival_data.rds` synthetic dataset in rds format
+- `cancer_survival_report.qmd` R Quarto file containing R code to produce all results presented in the chapter
+- `cancer_survival_report.docx` Word report rendered from the associated .qmd file
+
+***
+
 ## Zabor_Randomized-Biomarker-Guided Designs
+
+Reference:
+> Zabor EC, Kaizer AM, Pennell NA, Hobbs BP. Optimal predictive probability designs for randomized biomarker-guided oncology trials. Front Oncol. 2022;12:955056. Published 2022 Dec 6. doi:10.3389/fonc.2022.955056
 
 Data, data generating scripts, and analysis scripts for the three designs are available:
 

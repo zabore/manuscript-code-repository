@@ -1,0 +1,197 @@
+---
+title: "Clinical Opthalmic Oncology - Cancer Survival"
+subtitle: "Last updated: `r Sys.Date()`"
+author: "Emily C. Zabor"
+format: 
+  docx:
+    reference-doc: H:\templates\Rmarkdown_docx_style_01.docx
+execute: 
+  message: false
+  warning: false
+---
+
+```{r}
+# Load the data - adjust path to dataset as needed
+load(here::here("uveal_survival_data.rds"))
+
+# Load the needed libraries - install first if needed using install.packages() function
+library(survival)
+library(ggsurvfit)
+library(gtsummary)
+```
+
+<br>
+
+```{r}
+# Calculate the total number of subjects
+ntotal <- nrow(uveal_survival_data)
+```
+
+There are `r ntotal` total subjects in the synthetic dataset.
+
+<br>
+
+```{r}
+# Calculate the follow-up time among the event-free
+medfup <- 
+  summary(
+    uveal_survival_data$survival_time[
+      uveal_survival_data$survival_status == 0]
+    )
+```
+
+The median follow-up time among survivors was `r round(medfup["Median"], 1)` years (IQR: `r round(medfup["1st Qu."], 1)` - `r round(medfup["3rd Qu."], 1)`).
+
+<br>
+
+```{r}
+# Calculate the number of events
+nevents <- sum(uveal_survival_data$survival_status == 1)
+```
+
+During this time, `r nevents` subjects died from any cause.
+
+<br>
+
+```{r}
+# Create the Kaplan-Meier survival curves according to prognostic status
+km_fit <- survfit2(Surv(survival_time, survival_status) ~ prognosis_status,
+                   data = uveal_survival_data)
+```
+
+<br>
+
+```{r fig.height = 5, fig.width = 6}
+# Plot the resulting curves
+km_fit |> 
+  ggsurvfit() + 
+  add_risktable(risktable_stats = "n.risk") + 
+  labs(
+    x = "Years from diagnosis",
+    title = "Figure 1: Kaplan-Meier plot of survival probability according to prognostic group") +  
+  ylim(c(0, 1)) + 
+  scale_x_continuous(breaks = seq(0, 20, 1)) + 
+  theme(plot.title = element_text(size = 10))
+```
+
+<br>
+
+```{r echo = FALSE}
+library(ezfun)
+
+km_plot <- 
+  km_fit |> 
+  ggsurvfit() + 
+  add_risktable(risktable_stats = "n.risk") + 
+  labs(
+    x = "Years from diagnosis",
+    title = "Figure 1: Kaplan-Meier plot of survival probability according to prognostic group") + 
+  ylim(c(0, 1)) + 
+  scale_x_continuous(limits = c(0, 12), breaks = seq(0, 12, 1)) +
+  scale_color_manual(values = ccf_palette("contrast")) + 
+  theme(plot.title = element_text(size = 10))
+
+ggsave(plot = km_plot, file = here::here("kaplan-meier-plot.png"), 
+       width = 6, height = 5)
+```
+
+```{r fig.height = 5, fig.width = 6}
+# Add the median, 5-year, and log-rank test
+km_fit |> 
+  ggsurvfit() + 
+  add_risktable(risktable_stats = "n.risk") + 
+  labs(x = "Years from diagnosis",
+    title = "Figure 2: Kaplan-Meier plot with median and 5-year survival, and log-rank p-value") + 
+  ylim(c(0, 1))  + 
+  add_quantile(y_value = 0.5, linetype = "dotted", color = "grey30", 
+               linewidth = 0.8) +
+  add_quantile(x_value = 5, linetype = "dashed", color = "grey30", 
+               linewidth = 0.8) +
+  add_pvalue() + 
+  scale_x_continuous(limits = c(0, 12), breaks = seq(0, 12, 1)) + 
+  theme(plot.title = element_text(size = 10))
+```
+
+<br>
+
+```{r echo = FALSE}
+# Add the median, 5-year, and log-rank test
+km_plot2 <-
+  km_fit |> 
+  ggsurvfit() + 
+  add_risktable(risktable_stats = "n.risk") + 
+  labs(x = "Years from diagnosis",
+    title = "Figure 2: Kaplan-Meier plot with median and 5-year survival, and log-rank p-value") + 
+  ylim(c(0, 1))  + 
+  add_quantile(y_value = 0.5, linetype = "dotted", color = "grey30", 
+               linewidth = 0.8) +
+  add_quantile(x_value = 5, linetype = "dashed", color = "grey30", 
+               linewidth = 0.8) +
+  add_pvalue()+ 
+  scale_x_continuous(limits = c(0, 12), breaks = seq(0, 12, 1)) +
+  scale_color_manual(values = ccf_palette("contrast")) + 
+  theme(plot.title = element_text(size = 10))
+
+ggsave(plot = km_plot2, file = here::here("kaplan-meier-with-stats.png"), 
+       width = 6, height = 5)
+```
+
+```{r}
+# Calculate the median survival time by group
+tbl_survfit(
+  km_fit,
+  probs = 0.5,
+  label = list(prognosis_status = "Prognostic status"),
+  label_header = "**Median Survival**"
+)
+```
+
+<br>
+
+```{r}
+# Calculate 5-year survival time by group
+tbl_survfit(
+  km_fit,
+  times = 5,
+  label = list(prognosis_status = "Prognostic status"),
+  label_header = "**5-year Survival**"
+)
+```
+
+<br>
+
+```{r}
+# Add an age variable per 10 years to the dataset
+uveal_survival_data <- 
+  uveal_survival_data |> 
+  mutate(
+    age_10 = age_at_diagnosis / 10
+  )
+
+# Fit the MV Cox model
+mod <- coxph(Surv(survival_time, survival_status) ~ prognosis_status +
+               age_10 + sex, data = uveal_survival_data)
+
+tbl_regression(
+  mod,
+  label = list(prognosis_status = "Prognosis status",
+               age_10 = "Age at diagnosis (per 10 years)",
+               sex = "Sex"),
+  exponentiate = TRUE
+  ) |> 
+  bold_labels() |> 
+  add_global_p() |> 
+  modify_caption("Table 1: Multivariable Cox proportional hazards regression model results")
+```
+
+<br>
+
+```{r include = FALSE}
+tbl_summary(
+  uveal_survival_data,
+  by = prognosis_status
+) |> 
+  add_p()
+```
+
+
