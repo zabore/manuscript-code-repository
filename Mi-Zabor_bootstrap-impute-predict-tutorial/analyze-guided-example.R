@@ -64,7 +64,8 @@ set.seed(20240819)
 boot_dat <-
   map(
     1:500,
-    ~ slice_sample(dat |> select(-ends_with("imp")), prop = 1, replace = TRUE)
+    ~ slice_sample(dat |> select(-ends_with("imp")), 
+                   prop = 1, replace = TRUE)
   )
 
 # Then impute into the bootstrap samples
@@ -94,7 +95,8 @@ app_auc_brier <-
         times = 5)
 
 app_auc <- app_auc_brier[["AUC"]][["score"]][["AUC"]]
-app_brier <- app_auc_brier[["Brier"]][["score"]][["Brier"]][[2]]
+app_brier <- 
+  app_auc_brier[["Brier"]][["score"]][["Brier"]][[2]]
 
 
 # Bootstrap-corrected performance ----------------------------------------------
@@ -103,7 +105,8 @@ app_brier <- app_auc_brier[["Brier"]][["score"]][["Brier"]][[2]]
 b_mod <- 
   map(
     boot_imp_dat,
-    ~ coxph(app_mod[["formula"]], data = .x, x = TRUE, y = TRUE)
+    ~ coxph(app_mod[["formula"]], data = .x, 
+            x = TRUE, y = TRUE)
   ) 
 
 # Calculate performance in each bootstrap sample
@@ -196,7 +199,7 @@ test_brier <-
 
 # Calculate .632 AUC and Brier
 boot632_auc <- .368 * app_auc + .632 * mean(test_auc)
-boot632brier <- .368 * app_brier + .632 * mean(test_brier) 
+boot632_brier <- .368 * app_brier + .632 * mean(test_brier) 
 
 
 # .632+ performance ------------------------------------------------------------
@@ -207,12 +210,15 @@ gamma_brier <- 0.25
 
 # Define relative overfitting rate
 r_auc <- (mean(test_auc) - app_auc) / (gamma_auc - app_auc)
-r_brier <- (mean(test_brier) - app_brier) / (gamma_brier - app_brier)
+r_brier <- (mean(test_brier) - app_brier) / 
+  (gamma_brier - app_brier)
 
 # Define weights
 w_auc <- .632 / (1 - .368 * r_auc)
 w_brier <- .632 / (1 - .368 * r_brier)
 
 # Calculate the .632+ AUC and Brier
-boot632plus_auc <- (1 - w_auc) * app_auc + w_auc * mean(test_auc)
-boot632plus_brier <- (1 - w_brier) * app_brier + w_brier * mean(test_brier)
+boot632plus_auc <- (1 - w_auc) * app_auc + 
+  w_auc * mean(test_auc)
+boot632plus_brier <- (1 - w_brier) * app_brier + 
+  w_brier * mean(test_brier)
