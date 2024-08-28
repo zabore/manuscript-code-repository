@@ -41,8 +41,8 @@ p_m_x4 <- 0.30
 
 # log(OR) for joint missingness
 gamma_11 <- 0
-gamma_13 <- log(2.59)
-gamma_14 <- log(0.31)
+gamma_13 <- log(4.21)
+gamma_14 <- log(2.78)
 
 # log(OR) for covariates related to missingness
 gamma_21 <- log(1.05)
