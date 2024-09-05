@@ -11,25 +11,31 @@ library(riskRegression)
 library(survival)
 
 
+# load the data ----------------------------------------------------------------
+# Either run the code file "sim-guided-example-data.R" or load the file "dat0.rda"
+# I am loading it from my local GitHub clone
+load("D:/manuscript-code-repository/Mi-Zabor_bootstrap-impute-predict-tutorial/dat0.rda")
+
+
 # Function to impute the three missing variables -------------------------------
 # Allows for easier imputation into each bootstrap sample
 # dataset = full original dataset
 do_imp <- function(dataset) {
   # Imputation models
-  imp_x1 <- glm(x1_miss ~ x2 + x5 + x6 + x7 + x8 + 
-                  x9 + x10 + x11,
-                data = dataset[!is.na(dataset$x1_miss), ],
-                family = "binomial")
+  imp_x1 <- glm(
+    x1 ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
+    data = dataset[!is.na(dataset$x1), ],
+    family = "binomial")
   
-  imp_x3 <- glm(x3_miss ~ x2 + x5 + x6 + x7 + x8 +
-                  x9 + x10 + x11,
-                data = dataset[!is.na(dataset$x3_miss), ],
-                family = "gaussian")
+  imp_x3 <- glm(
+    x3 ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
+    data = dataset[!is.na(dataset$x3), ],
+    family = "gaussian")
   
-  imp_x4 <- glm(x4_miss ~ x2 + x5 + x6 + x7 + x8 + 
-                  x9 + x10 + x11,
-                data = dataset[!is.na(dataset$x4_miss), ],
-                family = "binomial")
+  imp_x4 <- glm(
+    x4 ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
+    data = dataset[!is.na(dataset$x4), ],
+    family = "binomial")
   
   # Predicted value
   x1_pred <- ifelse(
@@ -46,13 +52,17 @@ do_imp <- function(dataset) {
   dat <-
     dataset |>
     mutate(
-      x1_imp = ifelse(is.na(x1_miss), x1_pred, x1),
-      x3_imp = ifelse(is.na(x3_miss), x3_pred, x3),
-      x4_imp = ifelse(is.na(x4_miss), x4_pred, x4)
+      x1_imp = ifelse(is.na(x1), x1_pred, x1),
+      x3_imp = ifelse(is.na(x3), x3_pred, x3),
+      x4_imp = ifelse(is.na(x4), x4_pred, x4)
     )
   
   return(dat)
 }
+
+
+# impute into the original data ------------------------------------------------
+dat <- do_imp(dat0)
 
 
 # generate bootstrap data and impute into each bootstrap sample ----------------
@@ -62,30 +72,25 @@ set.seed(20240819)
 
 # Take 500 bootstrap samples of the data
 boot_dat <-
-  map(
-    1:500,
-    ~ slice_sample(dat |> select(-ends_with("imp")), 
-                   prop = 1, replace = TRUE)
-  )
+  map(1:500,
+      ~ slice_sample(dat0, prop = 1, replace = TRUE))
 
 # Then impute into the bootstrap samples
 boot_imp_dat <- 
   boot_dat |> 
-  map(~.x) |> 
-  map(
-    ~ do_imp(.x)
-  )
+  map(~ do_imp(.x))
 
 
 # Apparent performance ---------------------------------------------------------
 
-# Fit a model to the original data
-app_mod <- coxph(Surv(s, delta) ~ 
-                   x1_imp + x2 + x3_imp + x4_imp + x5 + 
-                   x6 + x7 + x8 + x9 + x10 + x11, 
-                 data = dat,  x = TRUE, y = TRUE)
+# Fit a model to the original imputed data
+app_mod <- 
+  coxph(Surv(s, delta) ~ 
+          x1_imp + x2 + x3_imp + x4_imp + x5 + 
+          x6 + x7 + x8 + x9 + x10 + x11, 
+        data = dat,  x = TRUE, y = TRUE)
 
-# Calculate performance in original data
+# Calculate performance in original imputed data
 app_auc_brier <- 
   Score(list("fit" = app_mod),
         formula = app_mod[["formula"]],
@@ -106,8 +111,7 @@ b_mod <-
   map(
     boot_imp_dat,
     ~ coxph(app_mod[["formula"]], data = .x, 
-            x = TRUE, y = TRUE)
-  ) 
+            x = TRUE, y = TRUE)) 
 
 # Calculate performance in each bootstrap sample
 b_auc_brier <-
@@ -119,20 +123,17 @@ b_auc_brier <-
             data = .x,
             se.fit = FALSE,
             conf.int = FALSE,
-            times = 5)
-  )
+            times = 5))
 
 b_auc <-
   map_dbl(
     b_auc_brier,
-    ~ .x[["AUC"]][["score"]][["AUC"]]
-  )
+    ~ .x[["AUC"]][["score"]][["AUC"]])
 
 b_brier <-
   map_dbl(
     b_auc_brier,
-    ~ .x[["Brier"]][["score"]][["Brier"]][[2]]
-  )
+    ~ .x[["Brier"]][["score"]][["Brier"]][[2]])
 
 # Calculate performance in original data
 o_auc_brier <-
@@ -143,8 +144,7 @@ o_auc_brier <-
             data = dat,
             se.fit = FALSE,
             conf.int = FALSE,
-            times = 5)
-  )
+            times = 5))
 
 o_auc <-
   map_dbl(
@@ -155,8 +155,7 @@ o_auc <-
 o_brier <-
   map_dbl(
     o_auc_brier,
-    ~ .x[["Brier"]][["score"]][["Brier"]][[2]]
-  )
+    ~ .x[["Brier"]][["score"]][["Brier"]][[2]])
 
 # Calculate bootstrap-corrected AUC and Brier
 boot_auc <- app_auc - mean(b_auc - o_auc)
@@ -169,8 +168,7 @@ boot_brier <- app_brier - mean(b_brier - o_brier)
 test_dat <- 
   boot_imp_dat |> 
   map(
-    ~ dat |> filter(!(id %in% unique(.x[["id"]])))
-  )
+    ~ dat |> filter(!(id %in% unique(.x[["id"]]))))
 
 # Calculate performance in each test dataset
 test_auc_brier <-
@@ -182,20 +180,17 @@ test_auc_brier <-
             data = .x,
             se.fit = FALSE,
             conf.int = FALSE,
-            times = 5)
-  )
+            times = 5))
 
 test_auc <-
   map_dbl(
     test_auc_brier,
-    ~ .x[["AUC"]][["score"]][["AUC"]]
-  )
+    ~ .x[["AUC"]][["score"]][["AUC"]])
 
 test_brier <-
   map_dbl(
     test_auc_brier,
-    ~ .x[["Brier"]][["score"]][["Brier"]][[2]]
-  )
+    ~ .x[["Brier"]][["score"]][["Brier"]][[2]])
 
 # Calculate .632 AUC and Brier
 boot632_auc <- .368 * app_auc + .632 * mean(test_auc)

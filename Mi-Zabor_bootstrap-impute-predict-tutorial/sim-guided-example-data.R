@@ -114,6 +114,8 @@ c <- rweibull(n, cens_shape, cens_scale) # weibull censoring times
 s <- pmin(t, c)
 delta <- ifelse(t <= c, 1, 0)
 
+# Induce covariate missingness -------------------------------------------------
+
 # Generate missingness
 gamma_01 <- log(p_m_x1 / (1 - p_m_x1)) - gamma_21 * mean(covs$x2)
 xg1 <- gamma_01 + gamma_21 * covs$x2
@@ -135,7 +137,7 @@ mp4 <- exp(xg4) / (1 + exp(xg4))
 m4 <- rbinom(n, 1, prob = mp4) 
 x4_miss = ifelse(m4 == 1, NA, covs$x4) 
 
-# Complete and missing covariate data
+# Original data
 dat0 <- tibble(
   s,
   delta,
@@ -143,47 +145,14 @@ dat0 <- tibble(
   x3_miss,
   x4_miss
   ) |> 
-  bind_cols(covs)
+  bind_cols(covs) |> 
+  # remove the complete data and rename missing columns
+  select(!c(x1, x3, x4)) |> 
+  rename(x1 = x1_miss, x3 = x3_miss, x4 = x4_miss) |> 
+  # generate a participant ID
+  mutate(id = row_number())|> 
+  select(id, s, delta, x1, x2, everything()) 
+  
 
-
-# Induce covariate missingness -------------------------------------------------
-
-# Imputation models
-imp_x1 <- glm(x1_miss ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
-              data = dat0[!is.na(dat0$x1_miss), ],
-              family = "binomial")
-
-imp_x3 <- glm(x3_miss ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
-              data = dat0[!is.na(dat0$x3_miss), ],
-              family = "gaussian")
-
-imp_x4 <- glm(x4_miss ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
-              data = dat0[!is.na(dat0$x4_miss), ],
-              family = "binomial")
-
-# Predicted value
-x1_pred <- ifelse(
-  predict(imp_x1, newdata = dat0, type = "response") > 0.5, 1, 0)
-
-x3_pred <- predict(imp_x3, newdata = dat0)
-
-x4_pred <- ifelse(
-  predict(imp_x4, newdata = dat0, type = "response") > 0.5, 1, 0)
-
-# Combine observed and predicted
-dat <-
-  dat0 |>
-  mutate(
-    x1_imp = case_when(
-      is.na(x1_miss) ~ x1_pred,
-      TRUE ~ x1
-    ),
-    x3_imp = case_when(
-      is.na(x3_miss) ~ x3_pred,
-      TRUE ~ x3
-    ),
-    x4_imp = case_when(
-      is.na(x4_miss) ~ x4_pred,
-      TRUE ~ x4
-    )
-  )
+# To save the generated data to the local GitHub clone 
+# save(dat0, file = "D:/manuscript-code-repository/Mi-Zabor_bootstrap-impute-predict-tutorial/dat0.rda")
