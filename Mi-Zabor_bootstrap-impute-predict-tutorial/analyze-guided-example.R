@@ -24,17 +24,17 @@ do_imp <- function(dataset) {
   # Imputation models
   imp_x1 <- glm(
     x1 ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
-    data = dataset[!is.na(dataset$x1), ],
+    data = dataset,
     family = "binomial")
   
   imp_x3 <- glm(
     x3 ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
-    data = dataset[!is.na(dataset$x3), ],
+    data = dataset,
     family = "gaussian")
   
   imp_x4 <- glm(
     x4 ~ x2 + x5 + x6 + x7 + x8 + x9 + x10 + x11,
-    data = dataset[!is.na(dataset$x4), ],
+    data = dataset,
     family = "binomial")
   
   # Predicted value

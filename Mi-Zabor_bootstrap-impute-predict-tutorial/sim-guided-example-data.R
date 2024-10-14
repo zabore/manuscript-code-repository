@@ -125,14 +125,14 @@ x1_miss = ifelse(m1 == 1, NA, covs$x1)
 
 gamma_03 <- log(p_m_x3 / (1 - p_m_x3)) - gamma_13 * p_m_x1 - 
   gamma_23 * mean(covs$x5)
-xg3 <- gamma_03 + gamma_13 * ifelse(is.na(covs$x1), 1, 0) + gamma_23 * covs$x5
+xg3 <- gamma_03 + gamma_13 * ifelse(is.na(x1_miss), 1, 0) + gamma_23 * covs$x5
 mp3 <- exp(xg3) / (1 + exp(xg3))
 m3 <- rbinom(n, 1, prob = mp3) 
 x3_miss = ifelse(m3 == 1, NA, covs$x3) 
 
 gamma_04 <- log(p_m_x4 / (1 - p_m_x4)) - gamma_14 * p_m_x3 - 
   gamma_24 * mean(covs$x6)
-xg4 <- gamma_04 + gamma_14 * ifelse(is.na(covs$x3), 1, 0) + gamma_24 * covs$x6
+xg4 <- gamma_04 + gamma_14 * ifelse(is.na(x3_miss), 1, 0) + gamma_24 * covs$x6
 mp4 <- exp(xg4) / (1 + exp(xg4))
 m4 <- rbinom(n, 1, prob = mp4) 
 x4_miss = ifelse(m4 == 1, NA, covs$x4) 
