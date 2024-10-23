@@ -5,7 +5,7 @@
 
 # load needed libraries --------------------------------------------------------
 # first run install.packages(".") to install package "." from CRAN if needed
-library(MASS)
+library(mvtnorm)
 library(tibble)
 library(dplyr)
 
@@ -80,7 +80,7 @@ set.seed(20240815)
 
 # Generate covariates
 covs <- 
-  mvrnorm(n = n, mu = mymu, Sigma = mysigma) |> 
+  rmvnorm(n = n, mean = mymu, sigma = mysigma) |> 
   as_tibble(.name_repair = ~ paste0("x", 1:11)) |> 
   mutate(
     x1 = ifelse(x1 <= 0.5, 0, 1),
