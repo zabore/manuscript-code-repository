@@ -107,3 +107,28 @@ get_ipcw_km_prob_x <- function(data, pre_times = seq(0, 50, 1)) {
     x = summary(ipcw_km_surv_fit, times = pre_times)$strata
   )
 }
+
+# Function to get the standard Cox regression result ----
+# Return the log hazard, SE, HR, and 95% CI
+## data = dataset obtained from gen_sim_data() function
+get_cox_fit <- function(data) { 
+  cox_fit <- coxph(Surv(tstart, tstop, delta) ~ x, data = data, 
+                   timefix = FALSE)
+  full_join(
+    tidy(cox_fit)[, 1:3] |> rename(log_hr = estimate, log_hr_se = std.error),
+    tidy(cox_fit, exponentiate = TRUE, conf.int = TRUE)[, c(1, 2, 6, 7)] |>
+      rename(hr = estimate, hr_ci_low = conf.low, hr_ci_high = conf.high),
+    by = "term"
+  )
+}
+
+# Function to get the bootstrap variance of the log(HR) ----
+get_boot_var <- function(data, B) {
+  sum((data$log_hr - mean(data$log_hr))^2) / B
+}
+
+
+# Function to get the bootstrap percentile intervals of log(HR) ----
+get_boot_pci <- function(data) {
+  quantile(data$log_hr, c(0.025, 0.975))
+}
