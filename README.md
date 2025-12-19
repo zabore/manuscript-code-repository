@@ -18,7 +18,9 @@ File:
 - `single_example_ipcw_dat.rda` single simulated dataset for the single event guided example, in long format with ipc weights
 - `single-event-functions.R` functions used in both the single event guided example and simulation study
 - `single-event-simulation-study.R` code to generate simulation study results for single event setting
--  `simulation_code_cuminc_finegray.R` code to generate simulation study results for the competing events setting
+-  `competing-risks-functions.R` 
+- `competing-risks-guided-example.R`
+- `competing-risks-simulation-study.R`
 
 ***
 
