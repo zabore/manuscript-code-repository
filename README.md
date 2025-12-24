@@ -4,6 +4,22 @@ This repository contains statistical code and data related to published manuscri
 
 ***
 
+## Zabor_seamless-design
+
+Reference: 
+>
+
+File:
+
+- `seamless-design-functions.R` functions to conduct the seamless design simulations
+- `seamless-design-simulation.R` code to generate simulation results for scenario with 5 dose levels and the MTD was dose 4
+- `seamless-design-simulation-2.R` code to generate simulation results for scenario with 3 dose levels and the MTD was dose 3
+- `seamless-design-simulation-3.R` code to generate simulation results for scenario with 3 dose levels and the MTD was dose 2
+- `seamless-design-simulation-4.R` code to generate simulation results for scenario with 3 dose levels and the MTD was dose 1
+
+
+***
+
 ## Zabor-Eaton_ipcw-tutorial
 
 Reference:
@@ -27,7 +43,7 @@ File:
 ## Mi-Zabor_bootstrap-impute-predict-tutorial
 
 Reference:
->
+> Mi, J., Tendulkar, R. D., Sittenfeld, S. M. C., Patil, S., & Zabor, E. C. (2025). Combining Missing Data Imputation and Internal Validation in Clinical Risk Prediction Models. Statistics in medicine, 44(18-19), e70203. https://doi.org/10.1002/sim.70203
 
 Code to simulate and analyze the single synthetic dataset used in the guided example.
 
@@ -43,8 +59,8 @@ File:
 
 ## Zabor_Clinical-Opthalmic-Oncology-Cancer-Survival
 
-Reference:
-> Clinical Ophthalmic Oncology: Basic Principles. United States, Springer.
+Reference: 
+> Zabor, E. C. (2025). Cancer Survival: Analysis and Reporting. In A. D. Singh & B. E. Damato (Eds.), Clinical Ophthalmic Oncology (Fourth ed., pp. 11-17). Switzerland: Springer.
 
 Synthetic data file, R code, and resulting Quarto report associated with all results included in the book chapter are available:
 
