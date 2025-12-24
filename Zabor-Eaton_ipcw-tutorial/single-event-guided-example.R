@@ -94,23 +94,36 @@ dat_long0 <-
   rename(tstop = t)
 
 # Fit Cox model for censoring
+# Note that in the paper, W2 was renamed anc
 cens_mod <- coxph(Surv(tstart, tstop, censor) ~ W2,
                   data = dat_long0, timefix = FALSE)
 
 # Estimate IPC weights
-dat_long <-
-  dat_long0 |>
-  mutate(id_nest = id) |>
-  nest(.by = id_nest) |>
+dat_long3 <- 
+  dat_long0 |> 
   mutate(
-    inv_wgt = map(data, ~ summary(
-      survfit(cens_mod, newdata = .x, id = id, timefix = FALSE),
-      times = .x[["tstart"]])$surv
+    # to estimate the probability of not being censored between time zero and the start of an interval (tstart)
+    tstop = tstart,
+    tstart = 0,
+    # the weight is one for intervals from 0 to 0
+    inv_wgt = case_when(
+      tstop == 0 ~ 1
     )
-  ) |>
-  unnest(c(data, inv_wgt)) |>
-  mutate(
-    wgt = 1 / inv_wgt
+  )
+
+dat_long3$inv_wgt[is.na(dat_long3$inv_wgt)] <-
+  exp(-predict(cens_mod,  
+               newdata = dat_long3[is.na(dat_long3$inv_wgt),], 
+               type = 'expected'))
+
+dat_long3$wgt <- 1 / dat_long3$inv_wgt
+
+dat_long <- 
+  dat_long0 |> 
+  full_join(
+    dat_long3 |> 
+      select(id, tstop, wgt),
+    by = c("id", "tstart" = "tstop")
   )
 
 # Save the single simulated dataset in long format with weights
@@ -131,6 +144,7 @@ survfit2(Surv(tstart, tstop, delta) ~ x,
   )
 
 # Fix the Cox regression model
+# Note that in the paper, x was renamed trt
 ipcw_cox_fit <- coxph(Surv(tstart, tstop, delta) ~ x + cluster(id), 
                       data = dat_long, weights = wgt, timefix = FALSE)
 
@@ -157,6 +171,11 @@ ipcw_boot_dat1 <-
   furrr::future_map(
     ~ get_ipcw_wgt(.)
   )
+
+# Fit the IPCW K-M curves to each of the 500 bootstrap samples
+ipcw_km_boot_fit1 <- 
+  ipcw_boot_dat1 |> 
+  map(~get_ipcw_km_prob_x(., pre_times = seq(0, 2429, 1)))
 
 # Fit the weighted Cox model for each of the 500 bootstrap samples
 ipcw_cox_boot_fit1 <-

@@ -6,7 +6,7 @@
 ### wgt = unstabilized weight based on pooled data
 get_ipcw_wgt <- function(data) {
   
-  times <- sort(unique(data$t[date$t == 0]))
+  times <- sort(unique(data$t[date$delta == 0]))
   
   dat_prep <- 
     data |> 
@@ -47,26 +47,31 @@ get_ipcw_wgt <- function(data) {
   
   dat_long3 <- 
     dat_long0 |> 
-    mutate(id_nest = id) |> 
-    nest(.by = id_nest) |> 
     mutate(
-      prob_num = map(data, ~ summary(
-        survfit(Surv(tstart, tstop, censor) ~ 1, timefix = FALSE, data = .x, id = id),
-        times = .x[["tstart"]])$surv
-      ),
-      prob_den = map(data, ~ summary(
-        survfit(cens_mod, newdata = .x, id = id, timefix = FALSE),
-        times = .x[["tstart"]])$surv
+      # to estimate the probability of not being censored between time zero and the start of an interval (tstart)
+      tstop = tstart,
+      tstart = 0,
+      # the weight is one for intervals from 0 to 0
+      inv_wgt = case_when(
+        tstop == 0 ~ 1
       )
-    ) |> 
-    unnest(c(data, prob_num, prob_den)) |> 
-    mutate(
-      wgt = 1 / prob_den,
-      wgt_stab = prob_num / prob_den
-    ) |> 
-    arrange(id, tstart)
+    )
   
-  return(dat_long3)
+  dat_long3$inv_wgt[is.na(dat_long3$inv_wgt)] <-
+    exp(-predict(cens_mod, newdata =
+                   dat_long3[is.na(dat_long3$inv_wgt),], type = 'expected'))
+  
+  dat_long3$wgt <- 1 / dat_long3$inv_wgt
+  
+  dat_long <- 
+    dat_long0 |> 
+    full_join(
+      dat_long3 |> 
+        select(id, tstop, wgt),
+      by = c("id", "tstart" = "tstop")
+    )
+  
+  return(dat_long)
 }
 
 
@@ -87,4 +92,43 @@ get_ipcw_cox_fit <- function(data, weight) {
       rename(hr = estimate, hr_ci_low = conf.low, hr_ci_high = conf.high),
     by = "term"
   )
+}
+
+
+# Function to get the IPCW Kaplan-Meier estimated probabilities, by binary covariate ----
+## data = dataset obtained from get_ipcw()function
+# Using original wgt
+get_ipcw_km_prob_x <- function(data, pre_times = seq(0, 50, 1)) {
+  ipcw_km_surv_fit <- survfit(Surv(tstart, tstop, delta) ~ x, data = data,
+                              weights = wgt, timefix = FALSE)
+  tibble(
+    time = summary(ipcw_km_surv_fit, times = pre_times)$time, 
+    surv = summary(ipcw_km_surv_fit, times = pre_times)$surv, 
+    x = summary(ipcw_km_surv_fit, times = pre_times)$strata
+  )
+}
+
+# Function to get the standard Cox regression result ----
+# Return the log hazard, SE, HR, and 95% CI
+## data = dataset obtained from gen_sim_data() function
+get_cox_fit <- function(data) { 
+  cox_fit <- coxph(Surv(tstart, tstop, delta) ~ x, data = data, 
+                   timefix = FALSE)
+  full_join(
+    tidy(cox_fit)[, 1:3] |> rename(log_hr = estimate, log_hr_se = std.error),
+    tidy(cox_fit, exponentiate = TRUE, conf.int = TRUE)[, c(1, 2, 6, 7)] |>
+      rename(hr = estimate, hr_ci_low = conf.low, hr_ci_high = conf.high),
+    by = "term"
+  )
+}
+
+# Function to get the bootstrap variance of the log(HR) ----
+get_boot_var <- function(data, B) {
+  sum((data$log_hr - mean(data$log_hr))^2) / B
+}
+
+
+# Function to get the bootstrap percentile intervals of log(HR) ----
+get_boot_pci <- function(data) {
+  quantile(data$log_hr, c(0.025, 0.975))
 }
