@@ -11,7 +11,11 @@ Reference:
 
 Files:
 
-- `msm-sim-study-generate-data.R` function to generate a simulated dataset, with example
+- `msm-sim-study-generate-data-function.R` function to generate a simulated dataset
+- `msm-sim-study-generate-single-dataset.R` use the function to generate a single dataset, broadly in line with the case study, for a demonstration analysis
+- `msm-sim-study-single-simulated-dataset.rda` the resulting single simulated data object
+- `msm-sim-study-analyze-single-dataset.qmd` analyze the single simulated dataset using marginal structural models
+- `msm-sim-study-analyze-single-dataset.html` analysis report
 
 
 ***
@@ -19,7 +23,7 @@ Files:
 ## Zabor_seamless-design
 
 Reference: 
->
+> Zabor EC, Govande S, Ma WW, Hobbs BP. A Seamless Phase I/II Design With Randomization for Biomarker-Guided Oncology Trials. Pharm Stat. 2026;25(6):e70124. doi:10.1002/pst.70124
 
 Files:
 
@@ -34,8 +38,8 @@ Files:
 
 ## Zabor-Eaton_ipcw-tutorial
 
-Reference:
->
+Reference: 
+> Zabor EC, Eaton AA. Inverse Probability of Censoring Weights for Single and Competing Events Survival Analyses With Dependent Censoring. Pharm Stat. 2026;25(6):e70138. doi:10.1002/pst.70138
 
 Code for the guided example and the simulation studies, for both single and competing events.
 

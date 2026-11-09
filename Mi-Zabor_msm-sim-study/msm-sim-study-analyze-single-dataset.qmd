@@ -1,0 +1,537 @@
+---
+title: "Single dataset analysis example"
+format: 
+  html:
+    toc: true
+    fig-responsive: true
+    embed-resources: true
+execute: 
+  message: false
+  warning: false
+  error: false
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup}
+# Load the saved dataset
+# NOTE: Alter the file path to match where you saved the dataset !
+load(here::here("data", "msm-sim-study-single-simulated-dataset.rda"))
+
+# Load needed libraries
+library(dplyr)
+library(gtsummary)
+library(gt)
+library(nnet)
+library(survival)
+library(ggsurvfit)
+library(cobalt)
+library(purrr)
+library(tidyr)
+library(splines)
+library(lmtest)
+library(sandwich)
+```
+
+```{r df_wide}
+# Extract the wide dataset and dichotomize the time-varying confounder 
+# In line with the case study
+# Note that the time-varying covariate is log-scale and centered
+df_wide <- 
+  dat[["data_wide"]] |> 
+  mutate(
+    bcr_abl1_1_bin = if_else(L_1 <= log10(50) - log10(75), 0, 1),
+    bcr_abl1_2_bin = if_else(L_2 <= log10(10) - log10(75), 0, 1),
+    bcr_abl1_3_bin = if_else(L_3 <= log10(10) - log10(75), 0, 1)
+  )
+```
+
+
+# Descriptive statistics
+
+```{r descrip_tab}
+tbl_pt <-
+  df_wide |> 
+  select(
+    first_age_dx,
+    spleen_size_through_imaging,
+    any_cvd,
+    ever_smoke
+  ) |> 
+  tbl_summary()
+
+tbl_trt <- 
+  df_wide |> 
+  select(starts_with("treatment_")) |> 
+  tbl_summary()
+
+tbl_bcr_abl <- 
+  df_wide |> 
+  select(starts_with("bcr_") & ends_with("_bin")) |> 
+  tbl_summary()
+
+tbl_stack(
+  list(tbl_pt, tbl_trt, tbl_bcr_abl),
+  group_header = c("Demographics", "Treatment", "BCR-ABL")
+) |>
+  as_gt() |>
+  gt::tab_style(
+    style = gt::cell_text(weight = "bold"),
+    locations = gt::cells_row_groups()
+  ) |> 
+  tab_header("Descriptive statistics")
+```
+
+<br>
+
+# Overall survival descriptives
+
+```{r}
+os_fup <- survfit(Surv(os_yrs, (1-os_event)) ~ 1, data = df_wide)
+```
+
+Median follow-up time among survivors was `r round(summary(os_fup)$table["median"], 1)` years (95% CI: `r round(summary(os_fup)$table["0.95LCL"], 1)` - `r round(summary(os_fup)$table["0.95UCL"], 1)` years). During that time, `r sum(df_wide$os_event == 1)` patients died from any cause.
+
+```{r}
+# Plot of OS overall
+survfit2(Surv(os_yrs, os_event) ~ 1, data = df_wide) |> 
+  ggsurvfit() + 
+  add_risktable(risktable_stats = "n.risk") + 
+  add_confidence_interval() + 
+  scale_y_continuous(limits = c(0, 1))
+```
+
+<br>
+
+# Guidance checks
+
+Apply the flowchart guidance.
+
+1. Check if there are sufficient events per treatment type, across all lines
+
+```{r}
+# events per treatment arm, pooled over lines
+events_by_arm <- 
+  dat[["data_long"]] |> filter(event == 1) |> count(treatment, name = "events")
+
+events_by_arm |> gt()
+```
+
+This is a very borderline case, with a 12-event arm and our guidance saying "about 10 events or more per arm". So we will expect large margins and would need to interpret results with caution here.
+
+2. Estimand of interest?
+
+Marginal
+
+<br>
+
+# Weight models
+
+```{r}
+# Baseline covariates for all models
+my_covs <- c(
+  "first_age_dx",
+  "spleen_size_through_imaging",
+  "any_cvd",
+  "ever_smoke"
+  )
+```
+
+## Denominator weight models
+
+```{r}
+# Denominator model fit for line 1
+denom_fit_line1 <- 
+  multinom( 
+    treatment_1 ~ first_age_dx + spleen_size_through_imaging + any_cvd + 
+      ever_smoke + bcr_abl1_1_bin,
+    data  = df_wide,
+    trace = FALSE
+    )
+
+# Denominator model fit for line 2
+denom_fit_line2 <- 
+  multinom(
+    treatment_2 ~ first_age_dx + spleen_size_through_imaging + any_cvd + 
+      ever_smoke + bcr_abl1_2_bin + treatment_1,
+    data  = df_wide,
+    trace = FALSE
+    )
+
+# Denominator model fit for line 3
+denom_fit_line3 <- 
+  multinom(
+    treatment_3 ~ first_age_dx + spleen_size_through_imaging + any_cvd + 
+      ever_smoke + bcr_abl1_3_bin + treatment_2,
+    data  = df_wide,
+    trace = FALSE
+    )
+```
+
+## Numerator weight models
+
+```{r}
+# Numerator models (for stabilized weights)
+# Marginal weights
+
+# Numerator model fit for line 1
+numer_fit_line1 <- 
+  multinom(
+    treatment_1 ~ 1,
+    data  = df_wide,
+    trace = FALSE
+    )
+
+# Numerator model fit for line 2
+numer_fit_line2 <- 
+  multinom(
+    treatment_2 ~ treatment_1,
+    data  = df_wide,
+    trace = FALSE
+    )
+
+# Numerator model fit for line 3
+numer_fit_line3 <- 
+  multinom(
+    treatment_3 ~ treatment_2,
+    data  = df_wide,
+    trace = FALSE
+    )
+```
+
+## Extract probabilities and compute weights
+
+```{r}
+# Function to extract the observed probability
+get_obs_prob <- function(fit, data, treatment) {
+  # probs has one row for each patient and one column for each treatment
+  probs <- predict(fit, newdata = data, type = "probs")
+  # lvls is the treatments
+  lvls <- colnames(probs)
+  # idx is a vector of indexes of which treatment the patient got,
+  # relative to lvls
+  idx <- match(as.character(data[[treatment]]), lvls)
+  # Then extract the correct column for each row
+  # Results in a vector of probabilities
+  probs[cbind(seq_len(nrow(data)), idx)]
+}
+
+# Dataset limited to line 1, get numerator and denominator probs
+df_line1 <- 
+  df_wide |> 
+  filter(!is.na(treatment_1)) |> 
+  mutate(
+    p_denom = get_obs_prob(denom_fit_line1, pick(everything()), "treatment_1"),
+    p_numer = get_obs_prob(numer_fit_line1, pick(everything()), "treatment_1"),
+    line = 1,
+    yrs_to_trt_start = 0
+    )
+
+# Dataset limited to line 2, get numerator and denominator probs
+df_line2 <- 
+  df_wide |> 
+  filter(!is.na(treatment_2)) |> 
+  mutate(
+    p_denom = get_obs_prob(denom_fit_line2, pick(everything()), "treatment_2"),
+    p_numer = get_obs_prob(numer_fit_line2, pick(everything()), "treatment_2"),
+    line = 2,
+    yrs_to_trt_start = interval_length_1
+    )
+
+# Dataset limited to line 3, get numerator and denominator probs
+df_line3 <- 
+  df_wide |> 
+  filter(!is.na(treatment_3)) |> 
+  mutate(
+    p_denom = get_obs_prob(denom_fit_line3, pick(everything()), "treatment_3"),
+    p_numer = get_obs_prob(numer_fit_line3, pick(everything()), "treatment_3"),
+    line = 3,
+    yrs_to_trt_start = interval_length_1 + interval_length_2
+    )
+
+# Combine the three lines and compute the standardized weights for all
+df_long_wgts <- 
+  bind_rows(
+    df_line1 |> 
+      rename(tki_type = treatment_1) |> 
+      select(-treatment_2, -treatment_3), 
+    df_line2 |> 
+      rename(tki_type = treatment_2) |> 
+      select(-treatment_1, -treatment_3), 
+    df_line3 |> 
+      rename(tki_type = treatment_3) |> 
+      select(-treatment_1, -treatment_2)) |>
+    arrange(patient_id, line) |>
+  # First calculate the per-line stabilized weights
+  mutate(
+    sw_k = p_numer / p_denom
+    ) |> 
+  # Then do per-line truncation at the 99th percentile
+  group_by(line) |> 
+  mutate(
+    sw_trunc = pmin(sw_k, quantile(sw_k, 0.99))
+    ) |> 
+  group_by(patient_id) |> 
+  mutate(
+    # Then get the cumulative product within person
+    sw = cumprod(sw_trunc),
+    # And add prior treatment
+    prior_tki_type = lag(tki_type)
+  ) |> 
+  ungroup() |> 
+  mutate(
+    tki_type = relevel(factor(tki_type), ref = "Imatinib") # Imatinib = reference 
+    )   
+```
+
+<br>
+
+## Weight diagnostics
+
+```{r}
+fits <- list(
+  den1 = denom_fit_line1, 
+  den2 = denom_fit_line2, 
+  den3 = denom_fit_line3)
+
+fit_tab <- 
+  data.frame(
+  line         = 1:3,
+  n            = sapply(fits, \(f) nrow(f$fitted.values)),
+  params       = sapply(fits, \(f) length(coef(f))),
+  max_abs_coef = sapply(fits, \(f) max(abs(coef(f)))),
+  converged    = sapply(fits, \(f) f$convergence == 0)
+)
+
+wt_tab <- 
+  df_long_wgts |>
+  group_by(line) |>
+  summarise(mean_sw = mean(sw_k), max_sw = max(sw),
+            ess = sum(sw)^2 / sum(sw^2), ess_prop = ess / n(),
+            min_cell = min(table(tki_type)))
+
+diag_tab <- left_join(fit_tab, wt_tab, by = "line") |>
+  mutate(
+    across(c(max_abs_coef, mean_sw, max_sw, ess), \(x) sprintf("%.2f", x)),
+    ess_prop  = sprintf("%.2f", ess_prop),
+    converged = ifelse(converged, "Yes", "No")
+  ) |>
+  select(line, n, params, max_abs_coef, converged,
+         mean_sw, max_sw, ess, ess_prop, min_cell)
+
+diag_tab |> gt()
+```
+
+The max_abs_coef for lines 2 and 3 are for the two empty treatment-history cells. 
+
+<br>
+
+```{r}
+# Plot the distribution of stabilized weights by line with a histogram
+df_long_wgts |>
+  ggplot(aes(x = sw)) +
+  geom_histogram(bins = 50) +
+  facet_wrap(~ line, labeller = label_both) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "tomato") +
+  labs(title = "Stabilized weight distribution by treatment line",
+       x = "Stabilized weight", y = "Count")
+```
+
+```{r}
+# Plot the density of the stabilized weights by line and by treatment
+df_long_wgts |>
+  ggplot(aes(x = sw, fill = tki_type)) +
+  geom_density(alpha = 0.4) +
+  facet_wrap(~ line, labeller = label_both) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  labs(title = "Stabilized weight distribution by treatment and line",
+       x = "Stabilized weight")
+```
+
+```{r fig.width = 8, fig.height = 7}
+# Create a love plot for line 1 to examine balance in baseline covariates before and after weighting, based on truncated weights
+df_line1_wgts <- df_long_wgts |> filter(line == 1)
+
+bal_out1 <- 
+  bal.tab(
+    x = df_line1_wgts |> 
+      select(all_of(my_covs), "bcr_abl1_1_bin"),
+    treat = df_line1_wgts$tki_type,
+    weights = df_line1_wgts$sw,
+    s.d.denom = "pooled",
+    un = TRUE, 
+    focal = "Imatinib",
+    which.treat = .all,
+    binary = "std"
+    )
+
+love.plot(
+  bal_out1,
+  threshold = 0.1,
+  line = TRUE,
+  stars = "std",
+  title     = "Covariate balance — line 1"
+)
+```
+
+```{r fig.width = 8, fig.height = 7}
+# Create a love plot for line 2 to examine balance in baseline covariates before and after weighting, based on truncated weights
+df_line2_wgts <- df_long_wgts |> filter(line == 2)
+
+bal_out2 <- 
+  bal.tab(
+    x = df_line2_wgts |> 
+      select(all_of(my_covs)),
+    treat = df_line2_wgts$tki_type,
+    weights = df_line2_wgts$sw,
+    s.d.denom = "pooled",
+    un = TRUE, 
+    focal = "Imatinib",
+    which.treat = .all,
+    binary = "std"
+    )
+
+love.plot(
+  bal_out2,
+  threshold = 0.1,
+  line = TRUE,
+  stars = "std",
+  title     = "Covariate balance — line 2"
+)
+```
+
+```{r fig.width = 8, fig.height = 7}
+# Create a love plot for line 3 to examine balance in baseline covariates before and after weighting, based on truncated weights
+df_line3_wgts <- df_long_wgts |> filter(line == 3)
+
+bal_out3 <- 
+  bal.tab(
+    x = df_line3_wgts |> 
+      select(all_of(my_covs)),
+    treat = df_line3_wgts$tki_type,
+    weights = df_line3_wgts$sw,
+    s.d.denom = "pooled",
+    un = TRUE, 
+    focal = "Imatinib",
+    which.treat = .all,
+    binary = "std"
+    )
+
+love.plot(
+  bal_out3,
+  threshold = 0.1,
+  line = TRUE,
+  stars = "std",
+  title     = "Covariate balance — line 3"
+)
+```
+
+<br>
+
+# Outcome models
+
+We create two formats of data - counting process and person-period - for use in the outcome models. The counting process format is used for the Cox model, and the person-period format is used for the pooled logistic regression model.
+
+```{r prep-out-data}
+# 1. counting-process data: one row per patient-line
+cp <- 
+  df_long_wgts |>
+  arrange(patient_id, line) |>
+  group_by(patient_id) |>
+  mutate(
+    tstart = yrs_to_trt_start,
+    # next line starts, or follow-up ends
+    tstop  = pmin(coalesce(lead(yrs_to_trt_start), os_yrs), os_yrs),  
+    # event only on the final interval
+    event  = as.integer(os_event == 1 & tstop == os_yrs)               
+  ) |>
+  ungroup() |>
+  filter(tstop > tstart)
+
+# 2. person-period data: monthly periods within each line
+h <- 1 / 12
+pp <- cp |>
+  mutate(n_per = pmax(ceiling((tstop - tstart) / h - 1e-8), 1)) |>
+  uncount(n_per, .id = "m", .remove = FALSE) |>
+  mutate(
+    p_start = tstart + (m - 1) * h,
+    p_stop  = pmin(tstart + m * h, tstop),
+    t_mid   = (p_start + p_stop) / 2,
+    y       = as.integer(event == 1 & m == n_per)
+  )
+```
+
+```{r}
+# marginal (weighted), treatment only
+# ns() is the spline for time
+plr_marg <- glm(y ~ ns(t_mid, df = 4) + tki_type,
+                family = quasibinomial, data = pp, weights = sw)
+cox_marg <- coxph(Surv(tstart, tstop, event) ~ tki_type,
+                  data = cp, weights = sw, cluster = patient_id)
+
+# unweighted comparator, with baseline covariates
+plr_unw <- glm(reformulate(c("ns(t_mid, df = 4)", "tki_type", my_covs), "y"),
+               family = quasibinomial, data = pp)
+cox_unw <- coxph(reformulate(c("tki_type", my_covs, "cluster(patient_id)"),
+                             "Surv(tstart, tstop, event)"), data = cp)
+```
+
+## Results tables
+
+First we examine the model results for the marginal weighted model, fitted by 
+pooled logistic regression, and the conditional unweighted model, fitted
+by Cox regression. We report the log(OR) or log(HR) and its standard error,
+95% CI, and p-value for each treatment vs Imatinib comparison.
+
+```{r}
+arms <- c("Dasatinib", "Nilotinib")        
+
+# cluster-robust SEs for the pooled logistic fit
+plr_ct <- coeftest(plr_marg, vcov = vcovCL(plr_marg, cluster = pp$patient_id))
+cox_ct <- summary(cox_unw)$coefficients
+rows   <- paste0("tki_type", arms)
+
+res <- bind_rows(
+  tibble(model = "Marginal, weighted (PLR)", arm = arms,
+         est = plr_ct[rows, "Estimate"], se = plr_ct[rows, "Std. Error"],
+         p   = plr_ct[rows, "Pr(>|z|)"]),
+  tibble(model = "Unweighted, adjusted (Cox)", arm = arms,
+         est = cox_ct[rows, "coef"], se = cox_ct[rows, "robust se"],
+         p   = cox_ct[rows, "Pr(>|z|)"])
+)
+
+model_tab <- res |>
+  mutate(
+    lo = est - qnorm(0.975) * se,
+    hi = est + qnorm(0.975) * se,
+    `Treatment vs Imatinib` = arm,
+    Model          = model,
+    `log(HR)/log(OR) (SE)` = sprintf("%.2f (%.2f)", est, se),
+    `HR/OR (95% CI)`  = sprintf("%.2f (%.2f, %.2f)", exp(est), exp(lo), exp(hi)),
+    `p-value`      = ifelse(p < 0.001, "<0.001", sprintf("%.3f", p))
+  ) |>
+  arrange(factor(arm, arms), model) |>
+  select(
+    `Treatment vs Imatinib`, 
+    Model, 
+    `log(HR)/log(OR) (SE)`, 
+    `HR/OR (95% CI)`, 
+    `p-value`)
+
+model_tab |> gt()
+```
+
+We also examine the number of events and the expected versus observed SEE.
+
+```{r}
+d_ref <- events_by_arm$events[events_by_arm$treatment == "Imatinib"]
+events_tab <- events_by_arm |>
+  filter(treatment %in% arms) |>
+  mutate(ref_events = d_ref,
+         expected_see = 1.1 * sqrt(1 / events + 1 / ref_events),
+         observed_see = res$se[res$model == "Marginal, weighted (PLR)"][match(treatment, res$arm[res$model == "Marginal, weighted (PLR)"])],
+         ci_fold = exp(2 * qnorm(0.975) * expected_see))
+events_tab |> gt() |> fmt_number(c(expected_see, observed_see, ci_fold), decimals = 2)
+```
+
